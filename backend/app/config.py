@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # --- Local LLM provider ---
     llm_provider: str = "llama_cpp"
     llm_base_url: str = "http://127.0.0.1:8080"
-    llm_model_id: str = "gemma-3-4b-it"
+    llm_model_id: str = "default"
     llm_model_path: str = "models/gemma-3-4b-it-Q4_K_M.gguf"
     llm_mmproj_path: str = "models/mmproj-gemma-3-4b-it-f16.gguf"
     llm_timeout: int = 120

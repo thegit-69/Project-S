@@ -1,4 +1,5 @@
-﻿import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   sendChatMessage,
@@ -138,6 +139,8 @@ const I18N = {
 };
 
 export default function ChatScreen({ onNavigate }) {
+  const { chatId } = useParams();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -222,6 +225,28 @@ export default function ChatScreen({ onNavigate }) {
     const interval = setInterval(checkSystem, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Load chat history on chatId change
+  useEffect(() => {
+    if (chatId) {
+      try {
+        const stored = JSON.parse(localStorage.getItem(`vault_chat_${chatId}`) || '[]');
+        setMessages(stored);
+      } catch (e) {
+        console.error('Failed to load chat messages', e);
+        setMessages([]);
+      }
+    } else {
+      setMessages([]);
+    }
+  }, [chatId]);
+
+  // Save chat history on messages change
+  useEffect(() => {
+    if (chatId && messages.length > 0) {
+      localStorage.setItem(`vault_chat_${chatId}`, JSON.stringify(messages));
+    }
+  }, [messages, chatId]);
 
   // Auto-scroll chat to latest message
   useEffect(() => {
@@ -380,6 +405,16 @@ export default function ChatScreen({ onNavigate }) {
       text: finalQuery,
       attachment: attachmentToUse ? { ...attachmentToUse } : null,
     };
+
+    let currentChatId = chatId;
+    if (!currentChatId) {
+      currentChatId = Date.now().toString();
+      const chats = JSON.parse(localStorage.getItem('vault_chats') || '[]');
+      chats.push({ id: currentChatId, title: finalQuery.slice(0, 30) + '...', timestamp: Date.now() });
+      localStorage.setItem('vault_chats', JSON.stringify(chats));
+      window.dispatchEvent(new Event('vault_chats_updated'));
+      navigate(`/chat/${currentChatId}`, { replace: true });
+    }
 
     setMessages((prev) => [...prev, userMsg]);
     setIsSending(true);

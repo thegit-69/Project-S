@@ -32,7 +32,7 @@ export default function App() {
       <div className="flex w-full h-full">
         <Sidebar active={activeId} onSelect={handleNavigate} />
         <motion.div
-          key={location.pathname}
+          key={location.pathname.startsWith('/chat') ? '/chat' : location.pathname}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -42,6 +42,7 @@ export default function App() {
         <Routes location={location} key={location.pathname}>
           <Route path="/" element={<Navigate to="/chat" replace />} />
           <Route path="/chat" element={<ChatScreen onNavigate={handleNavigate} />} />
+          <Route path="/chat/:chatId" element={<ChatScreen onNavigate={handleNavigate} />} />
           <Route path="/knowledge" element={<KnowledgeScreen onNavigate={handleNavigate} />} />
           <Route path="/kb" element={<Navigate to="/knowledge" replace />} />
           <Route path="/code" element={<CodeScreen onNavigate={handleNavigate} />} />

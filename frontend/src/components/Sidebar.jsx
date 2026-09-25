@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { MessageSquare, BookOpen, Code2, Cpu, Terminal, Settings } from 'lucide-react'
 
@@ -12,6 +12,26 @@ export const NAV = [
 
 export default function Sidebar({ active, onSelect }) {
   const [hover, setHover] = useState(false)
+  const [recentChats, setRecentChats] = useState([])
+
+  const loadChats = () => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('vault_chats') || '[]')
+      // Sort by timestamp descending
+      stored.sort((a, b) => b.timestamp - a.timestamp)
+      setRecentChats(stored)
+    } catch (e) {
+      console.error('Failed to load chats', e)
+    }
+  }
+
+  useEffect(() => {
+    loadChats()
+    // Listen for custom event from ChatScreen
+    const handleUpdate = () => loadChats()
+    window.addEventListener('vault_chats_updated', handleUpdate)
+    return () => window.removeEventListener('vault_chats_updated', handleUpdate)
+  }, [])
   return (
     <motion.aside
       onHoverStart={() => setHover(true)}
@@ -47,6 +67,40 @@ export default function Sidebar({ active, onSelect }) {
           )
         })}
       </nav>
+
+      {/* Recent Chats Section */}
+      <div className="flex-1 overflow-y-auto mt-6 px-1 custom-scrollbar">
+        {hover && recentChats.length > 0 && (
+          <div className="px-2 mb-2">
+            <span className="text-[10px] font-mono text-on-surface-variant uppercase tracking-wider">
+              Recent
+            </span>
+          </div>
+        )}
+        <nav className="flex flex-col gap-0.5">
+          {recentChats.map((chat) => {
+            const chatId = `chat/${chat.id}`
+            const on = active === chatId
+            return (
+              <button
+                key={chat.id}
+                onClick={() => onSelect(chatId)}
+                className={`relative h-8 flex items-center px-2 rounded text-left transition-colors
+                  ${on ? 'bg-surface-variant text-primary' : 'text-on-surface-variant hover:bg-surface-variant hover:text-on-surface'}`}
+              >
+                {on && <motion.span layoutId="nav-bar-recent" className="absolute left-0 top-1.5 bottom-1.5 w-[2px] bg-primary rounded" />}
+                <MessageSquare size={14} strokeWidth={1.75} className="shrink-0 ml-1" />
+                <motion.span
+                  animate={{ opacity: hover ? 1 : 0 }}
+                  className="ml-3 whitespace-nowrap text-[12px] truncate max-w-[140px]"
+                >
+                  {chat.title || 'Untitled Chat'}
+                </motion.span>
+              </button>
+            )
+          })}
+        </nav>
+      </div>
 
       <div className="mt-auto flex flex-col gap-2">
         <div className="h-8 flex items-center px-3 text-primary">
