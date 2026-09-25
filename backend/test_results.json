@@ -1,0 +1,81 @@
+{
+  "image_file_test_data.jpg": {
+    "upload_status": "Failed",
+    "upload_response": {
+      "error": true,
+      "status": 422,
+      "detail": "{\"detail\":\"Unsupported file type '.jpg'. Allowed: ['txt', 'pdf', 'docx']\"}"
+    }
+  },
+  "md_file_test_data.md": {
+    "upload_status": "Failed",
+    "upload_response": {
+      "error": true,
+      "status": 422,
+      "detail": "{\"detail\":\"Unsupported file type '.md'. Allowed: ['txt', 'pdf', 'docx']\"}"
+    }
+  },
+  "pdf_file_test_data.pdf": {
+    "upload_status": "Success",
+    "extraction_status": "TEXT_EXTRACTED",
+    "analysis_status": "Success",
+    "analysis_response": {
+      "document_id": "45bfe1dd-f804-4358-bf0d-ee244eaace27",
+      "summary": "This invoice, number ZBQNYIEJ0011, was issued on September 4, 2026, by OpenAI OpCo, LLC to Dasarath of Bargur, Tamil Nadu, India. The invoice details a ChatGPT Go Subscription at a cost of \u20b9399.00 due on the same date, with a total amount due of \u20b90.00.",
+      "key_findings": [
+        "Invoice number: ZBQNYIEJ0011",
+        "Date of issue: September 4, 2026",
+        "Date due: September 4, 2026",
+        "Billing entity: OpenAI OpCo, LLC, 1455 3rd Street, San Francisco, California 94158, United States",
+        "Billing contact: ar@openai.com",
+        "Tax ID: IN GST 9925USA29095OS3",
+        "Customer: Dasarath, Bargur, Tamil Nadu, India",
+        "Customer contact: robotzeror@gmail.com",
+        "Subscription Description: ChatGPT Go Subscription (per seat) - 1 seat at \u20b9399.00",
+        "Trial Description: ChatGPT Go - 12 Months Free Trial (100% off) - \u20b9399.00",
+        "Total Amount Due: \u20b90.00"
+      ],
+      "risks": [],
+      "action_items": []
+    }
+  },
+  "text_file_test_data.txt": {
+    "upload_status": "Success",
+    "extraction_status": "TEXT_EXTRACTED",
+    "analysis_status": "Success",
+    "analysis_response": {
+      "document_id": "c2c16cab-daa1-4326-8f97-6436701d2ca0",
+      "summary": "The document contains instructions and information related to various projects and systems, including Flask debug mode setup, Firebase key retrieval, a triage system for medical prioritization, and several software development projects utilizing automata theory, NLP, and databases. It also includes details on running backend applications and deploying Flutter apps.",
+      "key_findings": [
+        "To use Flask debug mode, specific PowerShell commands are provided to set the `FLASK_ENV` and `FLASK_DEBUG` environment variables and then run the `flask run` command.",
+        "Obtaining a Firebase SHA key for Flutter involves rebuilding the Gradle file, setting the `JAVA_HOME` environment variable, and running the `gradlew signingReport` command.",
+        "The triage system automatically prioritizes medical cases based on input data (Vital Signs or Chief Complaints) using overloaded C++ assess() functions.",
+        "Several software projects are listed, including those utilizing CFG parsing, finite automata, and NLP, along with specific database connections (NeonDB)."
+      ],
+      "risks": [],
+      "action_items": [
+        "Rules:",
+        "Only mention information actually present in the document.",
+        "If the document has no identifiable risks, write \"No risks identified.\"",
+        "If no action items are apparent, write \"No action items identified.\"",
+        "Be concise and factual."
+      ]
+    }
+  },
+  "word_file_test_data.docx": {
+    "upload_status": "Success",
+    "extraction_status": "TEXT_EXTRACTED",
+    "analysis_status": "Success",
+    "analysis_response": {
+      "document_id": "cc8192c6-59a0-43a3-9c0f-2b0e4749e8f9",
+      "summary": "The document proposes a three-engine architecture for handling LLM requests: vLLM for general, concurrent requests, SGLang for complex agent-based tasks, and llama.cpp for lightweight, offline use. The system utilizes Qwen3 as the primary LLM model due to its reasoning abilities, support for agent tasks, and long context capabilities.",
+      "key_findings": [
+        "Three proposed engines are: vLLM, SGLang, and llama.cpp.",
+        "The primary LLM model to be used is Qwen3.",
+        "The Model/Engine Router selects the most suitable engine based on the user\u2019s request."
+      ],
+      "risks": [],
+      "action_items": []
+    }
+  }
+}
