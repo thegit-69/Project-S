@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-export default function LogsScreen({ onNavigate }) {
+export default function LogsScreen({ onNavigate, hidden }) {
   const rootRef = useRef(null)
   const navRef = useRef(onNavigate)
   navRef.current = onNavigate
@@ -233,8 +233,8 @@ export default function LogsScreen({ onNavigate }) {
         });
 
         // Popover toggle & outside click handling
-        const settingsTrigger = document.getElementById('settings-trigger');
-        const settingsPopover = document.getElementById('settings-popover');
+        const settingsTrigger = root.querySelector('#settings-trigger');
+        const settingsPopover = root.querySelector('#settings-popover');
 
         if (settingsTrigger && settingsPopover) {
           settingsTrigger.addEventListener('click', (e) => {
@@ -276,9 +276,9 @@ export default function LogsScreen({ onNavigate }) {
         applyLanguage(currentLang);
 
         /* --- Accordion Logic --- */
-        const trigger = document.getElementById('accordion-trigger');
-        const content = document.getElementById('accordion-content');
-        const arrow = document.getElementById('accordion-arrow');
+        const trigger = root.querySelector('#accordion-trigger');
+        const content = root.querySelector('#accordion-content');
+        const arrow = root.querySelector('#accordion-arrow');
 
         if (trigger && content && arrow) {
           trigger.addEventListener('click', () => {
@@ -296,8 +296,8 @@ export default function LogsScreen({ onNavigate }) {
         /* --- Filter and Search Logic --- */
         const navButtons = document.querySelectorAll('#filter-nav button');
         const rows = document.querySelectorAll('#activity-stream article');
-        const searchInput = document.getElementById('search-input');
-        const clearBtn = document.getElementById('clear-btn');
+        const searchInput = root.querySelector('#search-input');
+        const clearBtn = root.querySelector('#clear-btn');
 
         let currentCategory = 'all';
 
@@ -355,7 +355,7 @@ export default function LogsScreen({ onNavigate }) {
       })();
 
 
-        const TARGETS = [['chat', ['chat']], ['kb', ['knowledge']], ['code', ['code']], ['models', ['models']], ['logs', ['logs', 'activity']]]
+        const TARGETS = [['chat', ['chat']], ['kb', ['knowledge']], ['models', ['models']], ['code', ['code']], ['logs', ['logs', 'activity']]]
         const sidebar = root.querySelector('aside')
         if (sidebar) {
           sidebar.querySelectorAll('a[href="#"]').forEach((a) => {

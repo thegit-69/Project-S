@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-export default function ChatScreen({ onNavigate }) {
+export default function ChatScreen({ onNavigate, hidden }) {
   const rootRef = useRef(null)
   const navRef = useRef(onNavigate)
   navRef.current = onNavigate
@@ -151,9 +151,9 @@ export default function ChatScreen({ onNavigate }) {
 
       function updateThemeUI(theme) {
         const btns = {
-          light: document.getElementById('theme-btn-light'),
-          dark: document.getElementById('theme-btn-dark'),
-          system: document.getElementById('theme-btn-system')
+          light: root.querySelector('#theme-btn-light'),
+          dark: root.querySelector('#theme-btn-dark'),
+          system: root.querySelector('#theme-btn-system')
         };
 
         Object.keys(btns).forEach(key => {
@@ -205,14 +205,14 @@ export default function ChatScreen({ onNavigate }) {
         });
 
         // Update composer placeholder
-        const input = document.getElementById('composer-input');
+        const input = root.querySelector('#composer-input');
         if (input && strings.input_placeholder) {
           input.placeholder = strings.input_placeholder;
         }
 
         // Update language select checkmarks and styling in popover
         ['en', 'hi', 'kn'].forEach(l => {
-          const btn = document.getElementById(`lang-btn-${l}`);
+          const btn = root.querySelector(`#lang-btn-${l}`);
           if (!btn) return;
           const check = btn.querySelector('.check-icon');
           if (l === lang) {
@@ -228,8 +228,8 @@ export default function ChatScreen({ onNavigate }) {
       }
 
       // Settings popover toggle
-      const trigger = document.getElementById('settings-trigger');
-      const popover = document.getElementById('settings-popover');
+      const trigger = root.querySelector('#settings-trigger');
+      const popover = root.querySelector('#settings-popover');
 
       let isPopoverOpen = false;
 
@@ -274,7 +274,7 @@ export default function ChatScreen({ onNavigate }) {
       setLanguage(currentLang);
 
 
-        const TARGETS = [['chat', ['chat']], ['kb', ['knowledge']], ['code', ['code']], ['models', ['models']], ['logs', ['logs', 'activity']]]
+        const TARGETS = [['chat', ['chat']], ['kb', ['knowledge']], ['models', ['models']], ['code', ['code']], ['logs', ['logs', 'activity']]]
         const sidebar = root.querySelector('aside')
         if (sidebar) {
           sidebar.querySelectorAll('a[href="#"]').forEach((a) => {
@@ -290,7 +290,7 @@ export default function ChatScreen({ onNavigate }) {
   }, [])
 
   return (
-    <div ref={rootRef} className={"w-full h-screen flex flex-col select-none relative bg-[#F7F6F2] dark:bg-[#151614] text-[#20211F] dark:text-[#ECEAE3] pl-16"}>
+    <div ref={rootRef} className={"w-full h-screen flex flex-col select-none relative bg-[#F7F6F2] dark:bg-[#151614] text-[#20211F] dark:text-[#ECEAE3] pl-16"} style={{ display: hidden ? 'none' : undefined }}>
       {" "}<aside className={"group/sidebar fixed top-0 left-0 bottom-0 h-screen w-16 hover:w-56 bg-card-bg border-r border-border-subtle z-50 flex flex-col justify-between py-4 px-2.5 transition-all duration-200 ease-in-out shadow-sm overflow-hidden select-none"}><div className={"flex flex-col w-full gap-4"}><div className={"flex items-center gap-3 px-1.5 overflow-hidden"}><div className={"w-8 h-8 rounded bg-[#176B5B] flex items-center justify-center text-white font-semibold text-[14px] shrink-0 shadow-sm"} title={"VAULT SOV-01"}><span className={"w-2.5 h-2.5 bg-white rounded-[1px]"}></span></div><div className={"flex flex-col whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 min-w-0"}><span className={"font-code-md text-code-md font-semibold text-text-primary tracking-wide leading-tight truncate"}>VAULT SOV-01</span><span className={"font-label-sm text-[10px] text-text-muted uppercase tracking-wider"}>AIR-GAP v4.19</span></div></div><nav className={"flex flex-col w-full gap-1.5 mt-2"}><a className={"relative flex items-center gap-3 h-10 px-2 rounded-md bg-accent-tint text-[#176B5B] transition-colors whitespace-nowrap overflow-hidden"} data-i18n-title={"nav_chat"} href={"#"} style={{"backgroundColor": "rgb(241, 247, 245)", "color": "rgb(23, 107, 91)"}} title={"Chat"}><span className={"absolute left-0 top-2 bottom-2 w-0.5 bg-[#176B5B] rounded-r"}></span><span className={"material-symbols-outlined text-[20px] shrink-0"}>chat</span><span className={"font-body-md text-body-md font-semibold opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 text-[#176B5B]"} data-i18n={"nav_chat"}>Chat</span></a><a className={"flex items-center gap-3 h-10 px-2 rounded-md text-text-muted hover:text-text-primary hover:bg-chip-bg transition-colors whitespace-nowrap overflow-hidden"} data-i18n-title={"nav_knowledge"} href={"#"} title={"Knowledge"}><span className={"material-symbols-outlined text-[20px] shrink-0"}>menu_book</span><span className={"font-body-md text-body-md font-medium opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200"} data-i18n={"nav_knowledge"}>Knowledge</span></a><a className={"flex items-center gap-3 h-10 px-2 rounded-md text-text-muted hover:text-text-primary hover:bg-chip-bg transition-colors whitespace-nowrap overflow-hidden"} data-i18n-title={"nav_code"} href={"#"} title={"Code"}><span className={"material-symbols-outlined text-[20px] shrink-0"}>code</span><span className={"font-body-md text-body-md font-medium opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200"} data-i18n={"nav_code"}>Code</span></a><a className={"flex items-center gap-3 h-10 px-2 rounded-md text-text-muted hover:text-text-primary hover:bg-chip-bg transition-colors whitespace-nowrap overflow-hidden"} data-i18n-title={"nav_models"} href={"#"} title={"Models"}><span className={"material-symbols-outlined text-[20px] shrink-0"}>deployed_code</span><span className={"font-body-md text-body-md font-medium opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200"} data-i18n={"nav_models"}>Models</span></a><a className={"flex items-center gap-3 h-10 px-2 rounded-md text-text-muted hover:text-text-primary hover:bg-chip-bg transition-colors whitespace-nowrap overflow-hidden"} data-i18n-title={"nav_logs"} href={"#"} title={"Logs"}><span className={"material-symbols-outlined text-[20px] shrink-0"}>receipt_long</span><span className={"font-body-md text-body-md font-medium opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200"} data-i18n={"nav_logs"}>Logs</span></a></nav></div><div className={"flex flex-col w-full gap-3"}><div className={"flex items-center gap-3 px-2 py-1.5 rounded hover:bg-chip-bg/50 transition-colors cursor-pointer overflow-hidden whitespace-nowrap"} title={"OFFLINE · Air-gapped environment"}><div className={"w-6 flex items-center justify-center shrink-0"}><span className={"w-2.5 h-2.5 rounded-full bg-[#176B5B] animate-pulse"}></span></div><div className={"flex flex-col opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 min-w-0"}><span className={"font-label-sm text-[11px] text-[#176B5B] font-semibold uppercase tracking-wider leading-none"} data-i18n={"badge_offline"}>OFFLINE</span><span className={"font-body-sm text-[11px] text-text-muted leading-tight truncate"}>Air-gapped safe</span></div></div><div className={"relative flex items-center"}><button aria-expanded={"false"} aria-haspopup={"true"} className={"w-full h-10 px-2 rounded-md flex items-center gap-3 text-text-muted hover:text-text-primary hover:bg-chip-bg border border-border-subtle transition-colors overflow-hidden whitespace-nowrap"} id={"settings-trigger"} title={"Settings"}><span className={"material-symbols-outlined text-[20px] shrink-0"}>tune</span><span className={"font-body-md text-body-md font-medium opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200"} data-i18n={"settings_btn"}>Settings</span></button><div className={"hidden absolute left-full bottom-0 ml-2 w-64 bg-card-bg border border-border-subtle rounded shadow-lg p-3 z-50 flex flex-col gap-3 font-sans transition-colors duration-180"} id={"settings-popover"}><div className={"flex flex-col gap-1.5"}><label className={"font-label-sm text-label-sm text-text-muted uppercase tracking-wider"} data-i18n={"theme_label"}>Theme</label><div className={"grid grid-cols-3 gap-1 bg-chip-bg p-1 rounded border border-border-subtle"} id={"theme-controls"}><button className={"py-1 px-2 text-label-sm font-label-sm uppercase rounded transition-colors"} data-theme={"light"}>Light</button><button className={"py-1 px-2 text-label-sm font-label-sm uppercase rounded transition-colors"} data-theme={"dark"}>Dark</button><button className={"py-1 px-2 text-label-sm font-label-sm uppercase rounded transition-colors"} data-theme={"system"}>System</button></div></div><div className={"flex flex-col gap-1.5"}><label className={"font-label-sm text-label-sm text-text-muted uppercase tracking-wider"} data-i18n={"lang_label"}>Language</label><div className={"grid grid-cols-3 gap-1 bg-chip-bg p-1 rounded border border-border-subtle"} id={"lang-controls"}><button className={"py-1 px-1.5 text-center text-label-sm font-medium rounded transition-colors"} data-lang={"en"}>EN</button><button className={"py-1 px-1.5 text-center text-body-sm font-medium rounded transition-colors"} data-lang={"hi"}>हिन्दी</button><button className={"py-1 px-1.5 text-center text-body-sm font-medium rounded transition-colors"} data-lang={"kn"}>ಕನ್ನಡ</button></div></div></div></div></div></aside>{" "}<main className={"flex-1 overflow-y-auto pt-10 pb-6 px-6 flex flex-col items-center"}>{" "}<div className={"w-full max-w-[760px] flex flex-col space-y-11"}>{" "}<div className={"flex items-center justify-center"}>{" "}<span className={"font-mono text-[11px] text-[#A09E96] dark:text-[#777970] tracking-wider uppercase"} data-key={"session_context"}>
       Session #4821-C · Air-gapped enclave · Llama-3-70B-Sovereign
       </span>{" "}</div>{" "}<div className={"flex flex-col space-y-2 pt-2"}>{" "}<div className={"flex items-baseline space-x-2.5"}>{" "}<span className={"font-mono text-[11px] font-medium text-[#77766F] dark:text-[#A6A69D] tracking-wider uppercase"} data-key={"role_operator"}>Operator</span>{" "}<span className={"font-mono text-[10px] text-[#A09E96] dark:text-[#777970]"}>14:28</span>{" "}</div>{" "}<p className={"text-[15.5px] leading-[1.6] text-[#20211F] dark:text-[#ECEAE3] font-normal pl-0.5"} data-key={"msg_operator"}>

@@ -10,18 +10,13 @@ const SCREENS = { chat: ChatScreen, kb: KnowledgeScreen, code: CodeScreen, model
 
 export default function App() {
   const [screen, setScreen] = useState('chat')
-  const Screen = SCREENS[screen]
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={screen}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18, ease: 'easeOut' }}
-      >
-        <Screen onNavigate={setScreen} />
-      </motion.div>
-    </AnimatePresence>
+    <>
+      <div style={{ display: screen === 'chat' ? 'block' : 'none' }}><ChatScreen onNavigate={setScreen} /></div>
+      <div style={{ display: screen === 'kb' ? 'block' : 'none' }}><KnowledgeScreen onNavigate={setScreen} /></div>
+      <div style={{ display: screen === 'code' ? 'block' : 'none' }}><CodeScreen onNavigate={setScreen} /></div>
+      <div style={{ display: screen === 'models' ? 'block' : 'none' }}><ModelsScreen onNavigate={setScreen} /></div>
+      <div style={{ display: screen === 'logs' ? 'block' : 'none' }}><LogsScreen onNavigate={setScreen} /></div>
+    </>
   )
 }
