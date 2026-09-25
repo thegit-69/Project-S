@@ -71,9 +71,8 @@ class Settings(BaseSettings):
     neural_similarity_threshold: float = 0.25
 
     # --- Persistence ---
-    knowledge_db_path: Path = Path("data/knowledge_base/knowledge.db")
-    vector_storage_path: Path = Path("data/knowledge_base/vectors")
-    document_db_path: Path = Path("data/documents.db")
+    database_url: str
+    object_storage_dir: Path
 
     model_config = {
         "env_prefix": "SAW_",

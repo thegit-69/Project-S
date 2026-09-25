@@ -64,4 +64,4 @@ htmlcov/
 
 # llama.cpp build artifacts
 llama.cpp/
-system_architecture.md
+docs/
