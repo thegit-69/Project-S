@@ -24,14 +24,14 @@ export default function Code() {
 
   return (
     <div className="h-full flex flex-col">
-      <header className="px-6 h-14 flex items-center justify-between border-b border-hairline bg-panel2">
+      <header className="px-6 h-14 flex items-center justify-between border-b border-outline-variant bg-surface">
         <div>
           <h1 className="text-[20px] font-medium tracking-tight">Code Studio</h1>
-          <p className="mono text-[11px] text-muted">SANDBOX · PYTHON 3.11 · NO NETWORK</p>
+          <p className="mono text-[11px] text-on-surface-variant">SANDBOX · PYTHON 3.11 · NO NETWORK</p>
         </div>
         <div className="flex gap-2">
-          <button className="btn-ghost" onClick={() => { setCode(START); setOut([]) }}><RotateCcw size={14} /> Reset</button>
-          <button className="btn-primary" onClick={run} disabled={running}><Play size={14} /> Run</button>
+          <button className="flex items-center gap-1.5 h-8 px-2.5 rounded text-on-surface-variant text-[13px] hover:bg-surface hover:text-on-surface transition-colors" onClick={() => { setCode(START); setOut([]) }}><RotateCcw size={14} /> Reset</button>
+          <button className="flex items-center gap-1.5 h-8 px-3 rounded bg-primary text-white text-[13px] font-medium hover:bg-primary-hover transition-colors disabled:opacity-40" onClick={run} disabled={running}><Play size={14} /> Run</button>
         </div>
       </header>
 
@@ -40,15 +40,15 @@ export default function Code() {
           value={code}
           onChange={(e) => setCode(e.target.value)}
           spellCheck={false}
-          className="panel p-4 mono text-[13px] leading-6 resize-none outline-none focus:border-petrol"
+          className="bg-surface border border-outline-variant rounded-lg p-4 mono text-[13px] leading-6 resize-none outline-none focus:border-primary text-on-surface"
         />
-        <div className="panel overflow-hidden flex flex-col">
-          <div className="h-8 px-3 flex items-center bg-panel2 border-b border-hairline mono text-[11px] text-muted uppercase tracking-wider">Output</div>
-          <div className="p-3 mono text-[12px] leading-5 overflow-y-auto">
+        <div className="bg-surface border border-outline-variant rounded-lg overflow-hidden flex flex-col">
+          <div className="h-8 px-3 flex items-center bg-background border-b border-outline-variant mono text-[11px] text-on-surface-variant uppercase tracking-wider">Output</div>
+          <div className="p-3 mono text-[12px] leading-5 overflow-y-auto bg-surface">
             <AnimatePresence>
               {out.map((l, i) => (
                 <motion.div key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}
-                  className={l.startsWith('exit') ? 'text-petrol' : l.startsWith('$') ? 'text-muted' : ''}>
+                  className={l.startsWith('exit') ? 'text-primary' : l.startsWith('$') ? 'text-on-surface-variant' : 'text-on-surface'}>
                   {l}
                 </motion.div>
               ))}

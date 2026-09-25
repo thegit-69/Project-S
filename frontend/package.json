@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "framer-motion": "^11.11.0",
+    "lucide-react": "^1.48.0",
     "marked": "^18.0.14",
     "prismjs": "^1.30.0",
     "react": "^18.3.1",

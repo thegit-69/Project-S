@@ -5,6 +5,7 @@ import KnowledgeScreen from './screens/KnowledgeScreen.jsx'
 import CodeScreen from './screens/CodeScreen.jsx'
 import ModelsScreen from './screens/ModelsScreen.jsx'
 import LogsScreen from './screens/LogsScreen.jsx'
+import Sidebar from './components/Sidebar.jsx'
 
 const ROUTE_MAP = {
   chat: '/chat',
@@ -24,16 +25,20 @@ export default function App() {
     navigate(destination)
   }
 
+  const activeId = Object.keys(ROUTE_MAP).find(k => ROUTE_MAP[k] === location.pathname) || location.pathname.replace('/', '')
+
   return (
     <AnimatePresence mode="wait">
-      <motion.div
-        key={location.pathname}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18, ease: 'easeOut' }}
-        className="w-full h-full"
-      >
+      <div className="flex w-full h-full">
+        <Sidebar active={activeId} onSelect={handleNavigate} />
+        <motion.div
+          key={location.pathname}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+          className="flex-1 w-full h-full relative"
+        >
         <Routes location={location} key={location.pathname}>
           <Route path="/" element={<Navigate to="/chat" replace />} />
           <Route path="/chat" element={<ChatScreen onNavigate={handleNavigate} />} />
@@ -44,7 +49,8 @@ export default function App() {
           <Route path="/logs" element={<LogsScreen onNavigate={handleNavigate} />} />
           <Route path="*" element={<Navigate to="/chat" replace />} />
         </Routes>
-      </motion.div>
+        </motion.div>
+      </div>
     </AnimatePresence>
   )
 }

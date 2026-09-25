@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   sendChatMessage,
@@ -25,20 +25,20 @@ const I18N = {
     nav_models: "Models",
     nav_logs: "Logs",
     badge_offline: "OFFLINE",
-    session_context: "Session #4821-C · Air-gapped enclave · Gemma-3-4B-IT (Local Llama.cpp)",
+    session_context: "Session #4821-C Â· Air-gapped enclave Â· Gemma-3-4B-IT (Local Llama.cpp)",
     role_operator: "Operator",
     role_vault: "Vault",
     msg_operator: "Review the inspection report and identify the findings that require immediate action.",
     msg_vault_title: "Three findings require immediate attention.",
     finding_1_bold: "Pressure anomaly detected",
     finding_1_body: "on Feedwater Pump 2B casing during cycle transition. Ultrasonic readings exceed baseline thresholds by 18.4%.",
-    citation_1: "Inspection_Report.pdf · p.14",
+    citation_1: "Inspection_Report.pdf Â· p.14",
     finding_2_bold: "Corrosion identified",
     finding_2_body: "in Secondary Heat Exchanger bypass flange weld seam. Wall thickness compromised past allowable metallurgical safety margin (3.2mm vs 4.0mm required).",
-    citation_2: "Inspection_Report.pdf · p.22",
+    citation_2: "Inspection_Report.pdf Â· p.22",
     finding_3_bold: "Inspection interval exceeded",
     finding_3_body: "for Turbine Isolation Relief Valve VR-408 by 42 days. Regulatory conformance mandates re-calibration prior to high-load startup.",
-    citation_3: "Inspection_Report.pdf · p.31",
+    citation_3: "Inspection_Report.pdf Â· p.31",
     recommendation_text: "Recommendation: Issue maintenance work orders for Pump 2B and Valve VR-408 before cycle 08 commencement. Would you like me to draft the priority defect dispatches?",
     status_step1: "Reading inspection_report.pdf",
     status_step2: "Searching local knowledge",
@@ -51,89 +51,89 @@ const I18N = {
     input_placeholder: "Ask Vault...",
     attached_file: "Inspection_Report.pdf (attached)",
     btn_return: "return",
-    footer_note: "Sovereign on-premise execution · Zero external telemetry · Hardware enclave active"
+    footer_note: "Sovereign on-premise execution Â· Zero external telemetry Â· Hardware enclave active"
   },
   hi: {
-    settings_title: "सेटिंग्स",
-    settings_theme: "थीम",
-    settings_lang: "भाषा",
-    theme_light: "लाइट",
-    theme_dark: "डार्क",
-    theme_system: "सिस्टम",
-    nav_chat: "चैट",
-    nav_knowledge: "ज्ञान",
-    nav_code: "कोड",
-    nav_models: "मॉडल",
-    nav_logs: "लॉग",
-    badge_offline: "ऑफ़लाइन",
-    session_context: "सत्र #4821-C · एयर-गैप्ड एन्क्लेव · Gemma-3-4B-IT (स्थानीय Llama.cpp)",
-    role_operator: "ऑपरेटर",
-    role_vault: "वॉल्ट",
-    msg_operator: "निरीक्षण रिपोर्ट की समीक्षा करें और उन निष्कर्षों की पहचान करें जिन पर तत्काल कार्रवाई आवश्यक है।",
-    msg_vault_title: "तीन निष्कर्षों पर तत्काल ध्यान देने की आवश्यकता है।",
-    finding_1_bold: "दबाव विसंगति का पता चला",
-    finding_1_body: "साइकिल संक्रमण के दौरान फीडवाटर पंप 2B आवरण पर। अल्ट्रासोनिक रीडिंग बेसलाइन सीमा से 18.4% अधिक है।",
-    citation_1: "Inspection_Report.pdf · पृ.14",
-    finding_2_bold: "संक्षारण की पहचान की गई",
-    finding_2_body: "द्वितीयक हीट एक्सचेंजर बाईपास निकला हुआ किनारा वेल्ड सीम में। दीवार की मोटाई स्वीकार्य सुरक्षा सीमा से कम।",
-    citation_2: "Inspection_Report.pdf · पृ.22",
-    finding_3_bold: "निरीक्षण अंतराल समाप्त",
-    finding_3_body: "टर्बाइन आइसोलेशन रिलीफ वाल्व VR-408 के लिए 42 दिन बीत चुके हैं।",
-    citation_3: "Inspection_Report.pdf · पृ.31",
-    recommendation_text: "सिफारिश: चक्र 08 प्रारंभ से पहले पंप 2B और वाल्व VR-408 के लिए रखरखाव कार्य आदेश जारी करें।",
-    status_step1: "दस्तावेज़ पढ़ा जा रहा है",
-    status_step2: "स्थानीय ज्ञान में खोज जारी",
-    status_step3: "उत्तर तैयार किया जा रहा है",
-    tokens_metric: "4,120 / 64k टोकन",
-    quick_actions_label: "त्वरित कार्रवाइयां:",
-    qa_analyze: "दस्तावेज़ का विश्लेषण",
-    qa_search: "ज्ञान खोजें",
-    qa_code: "कोड लिखें",
-    input_placeholder: "Vault से पूछें...",
-    attached_file: "Inspection_Report.pdf (संलग्न)",
-    btn_return: "रिटर्न",
-    footer_note: "संप्रभु ऑन-प्रिमाइसेस निष्पादन · शून्य बाहरी टेलीमेट्री · हार्डवेयर एन्क्लेव सक्रिय"
+    settings_title: "à¤¸à¥‡à¤Ÿà¤¿à¤‚à¤—à¥à¤¸",
+    settings_theme: "à¤¥à¥€à¤®",
+    settings_lang: "à¤­à¤¾à¤·à¤¾",
+    theme_light: "à¤²à¤¾à¤‡à¤Ÿ",
+    theme_dark: "à¤¡à¤¾à¤°à¥à¤•",
+    theme_system: "à¤¸à¤¿à¤¸à¥à¤Ÿà¤®",
+    nav_chat: "à¤šà¥ˆà¤Ÿ",
+    nav_knowledge: "à¤œà¥à¤žà¤¾à¤¨",
+    nav_code: "à¤•à¥‹à¤¡",
+    nav_models: "à¤®à¥‰à¤¡à¤²",
+    nav_logs: "à¤²à¥‰à¤—",
+    badge_offline: "à¤‘à¤«à¤¼à¤²à¤¾à¤‡à¤¨",
+    session_context: "à¤¸à¤¤à¥à¤° #4821-C Â· à¤à¤¯à¤°-à¤—à¥ˆà¤ªà¥à¤¡ à¤à¤¨à¥à¤•à¥à¤²à¥‡à¤µ Â· Gemma-3-4B-IT (à¤¸à¥à¤¥à¤¾à¤¨à¥€à¤¯ Llama.cpp)",
+    role_operator: "à¤‘à¤ªà¤°à¥‡à¤Ÿà¤°",
+    role_vault: "à¤µà¥‰à¤²à¥à¤Ÿ",
+    msg_operator: "à¤¨à¤¿à¤°à¥€à¤•à¥à¤·à¤£ à¤°à¤¿à¤ªà¥‹à¤°à¥à¤Ÿ à¤•à¥€ à¤¸à¤®à¥€à¤•à¥à¤·à¤¾ à¤•à¤°à¥‡à¤‚ à¤”à¤° à¤‰à¤¨ à¤¨à¤¿à¤·à¥à¤•à¤°à¥à¤·à¥‹à¤‚ à¤•à¥€ à¤ªà¤¹à¤šà¤¾à¤¨ à¤•à¤°à¥‡à¤‚ à¤œà¤¿à¤¨ à¤ªà¤° à¤¤à¤¤à¥à¤•à¤¾à¤² à¤•à¤¾à¤°à¥à¤°à¤µà¤¾à¤ˆ à¤†à¤µà¤¶à¥à¤¯à¤• à¤¹à¥ˆà¥¤",
+    msg_vault_title: "à¤¤à¥€à¤¨ à¤¨à¤¿à¤·à¥à¤•à¤°à¥à¤·à¥‹à¤‚ à¤ªà¤° à¤¤à¤¤à¥à¤•à¤¾à¤² à¤§à¥à¤¯à¤¾à¤¨ à¤¦à¥‡à¤¨à¥‡ à¤•à¥€ à¤†à¤µà¤¶à¥à¤¯à¤•à¤¤à¤¾ à¤¹à¥ˆà¥¤",
+    finding_1_bold: "à¤¦à¤¬à¤¾à¤µ à¤µà¤¿à¤¸à¤‚à¤—à¤¤à¤¿ à¤•à¤¾ à¤ªà¤¤à¤¾ à¤šà¤²à¤¾",
+    finding_1_body: "à¤¸à¤¾à¤‡à¤•à¤¿à¤² à¤¸à¤‚à¤•à¥à¤°à¤®à¤£ à¤•à¥‡ à¤¦à¥Œà¤°à¤¾à¤¨ à¤«à¥€à¤¡à¤µà¤¾à¤Ÿà¤° à¤ªà¤‚à¤ª 2B à¤†à¤µà¤°à¤£ à¤ªà¤°à¥¤ à¤…à¤²à¥à¤Ÿà¥à¤°à¤¾à¤¸à¥‹à¤¨à¤¿à¤• à¤°à¥€à¤¡à¤¿à¤‚à¤— à¤¬à¥‡à¤¸à¤²à¤¾à¤‡à¤¨ à¤¸à¥€à¤®à¤¾ à¤¸à¥‡ 18.4% à¤…à¤§à¤¿à¤• à¤¹à¥ˆà¥¤",
+    citation_1: "Inspection_Report.pdf Â· à¤ªà¥ƒ.14",
+    finding_2_bold: "à¤¸à¤‚à¤•à¥à¤·à¤¾à¤°à¤£ à¤•à¥€ à¤ªà¤¹à¤šà¤¾à¤¨ à¤•à¥€ à¤—à¤ˆ",
+    finding_2_body: "à¤¦à¥à¤µà¤¿à¤¤à¥€à¤¯à¤• à¤¹à¥€à¤Ÿ à¤à¤•à¥à¤¸à¤šà¥‡à¤‚à¤œà¤° à¤¬à¤¾à¤ˆà¤ªà¤¾à¤¸ à¤¨à¤¿à¤•à¤²à¤¾ à¤¹à¥à¤† à¤•à¤¿à¤¨à¤¾à¤°à¤¾ à¤µà¥‡à¤²à¥à¤¡ à¤¸à¥€à¤® à¤®à¥‡à¤‚à¥¤ à¤¦à¥€à¤µà¤¾à¤° à¤•à¥€ à¤®à¥‹à¤Ÿà¤¾à¤ˆ à¤¸à¥à¤µà¥€à¤•à¤¾à¤°à¥à¤¯ à¤¸à¥à¤°à¤•à¥à¤·à¤¾ à¤¸à¥€à¤®à¤¾ à¤¸à¥‡ à¤•à¤®à¥¤",
+    citation_2: "Inspection_Report.pdf Â· à¤ªà¥ƒ.22",
+    finding_3_bold: "à¤¨à¤¿à¤°à¥€à¤•à¥à¤·à¤£ à¤…à¤‚à¤¤à¤°à¤¾à¤² à¤¸à¤®à¤¾à¤ªà¥à¤¤",
+    finding_3_body: "à¤Ÿà¤°à¥à¤¬à¤¾à¤‡à¤¨ à¤†à¤‡à¤¸à¥‹à¤²à¥‡à¤¶à¤¨ à¤°à¤¿à¤²à¥€à¤« à¤µà¤¾à¤²à¥à¤µ VR-408 à¤•à¥‡ à¤²à¤¿à¤ 42 à¤¦à¤¿à¤¨ à¤¬à¥€à¤¤ à¤šà¥à¤•à¥‡ à¤¹à¥ˆà¤‚à¥¤",
+    citation_3: "Inspection_Report.pdf Â· à¤ªà¥ƒ.31",
+    recommendation_text: "à¤¸à¤¿à¤«à¤¾à¤°à¤¿à¤¶: à¤šà¤•à¥à¤° 08 à¤ªà¥à¤°à¤¾à¤°à¤‚à¤­ à¤¸à¥‡ à¤ªà¤¹à¤²à¥‡ à¤ªà¤‚à¤ª 2B à¤”à¤° à¤µà¤¾à¤²à¥à¤µ VR-408 à¤•à¥‡ à¤²à¤¿à¤ à¤°à¤–à¤°à¤–à¤¾à¤µ à¤•à¤¾à¤°à¥à¤¯ à¤†à¤¦à¥‡à¤¶ à¤œà¤¾à¤°à¥€ à¤•à¤°à¥‡à¤‚à¥¤",
+    status_step1: "à¤¦à¤¸à¥à¤¤à¤¾à¤µà¥‡à¤œà¤¼ à¤ªà¤¢à¤¼à¤¾ à¤œà¤¾ à¤°à¤¹à¤¾ à¤¹à¥ˆ",
+    status_step2: "à¤¸à¥à¤¥à¤¾à¤¨à¥€à¤¯ à¤œà¥à¤žà¤¾à¤¨ à¤®à¥‡à¤‚ à¤–à¥‹à¤œ à¤œà¤¾à¤°à¥€",
+    status_step3: "à¤‰à¤¤à¥à¤¤à¤° à¤¤à¥ˆà¤¯à¤¾à¤° à¤•à¤¿à¤¯à¤¾ à¤œà¤¾ à¤°à¤¹à¤¾ à¤¹à¥ˆ",
+    tokens_metric: "4,120 / 64k à¤Ÿà¥‹à¤•à¤¨",
+    quick_actions_label: "à¤¤à¥à¤µà¤°à¤¿à¤¤ à¤•à¤¾à¤°à¥à¤°à¤µà¤¾à¤‡à¤¯à¤¾à¤‚:",
+    qa_analyze: "à¤¦à¤¸à¥à¤¤à¤¾à¤µà¥‡à¤œà¤¼ à¤•à¤¾ à¤µà¤¿à¤¶à¥à¤²à¥‡à¤·à¤£",
+    qa_search: "à¤œà¥à¤žà¤¾à¤¨ à¤–à¥‹à¤œà¥‡à¤‚",
+    qa_code: "à¤•à¥‹à¤¡ à¤²à¤¿à¤–à¥‡à¤‚",
+    input_placeholder: "Vault à¤¸à¥‡ à¤ªà¥‚à¤›à¥‡à¤‚...",
+    attached_file: "Inspection_Report.pdf (à¤¸à¤‚à¤²à¤—à¥à¤¨)",
+    btn_return: "à¤°à¤¿à¤Ÿà¤°à¥à¤¨",
+    footer_note: "à¤¸à¤‚à¤ªà¥à¤°à¤­à¥ à¤‘à¤¨-à¤ªà¥à¤°à¤¿à¤®à¤¾à¤‡à¤¸à¥‡à¤¸ à¤¨à¤¿à¤·à¥à¤ªà¤¾à¤¦à¤¨ Â· à¤¶à¥‚à¤¨à¥à¤¯ à¤¬à¤¾à¤¹à¤°à¥€ à¤Ÿà¥‡à¤²à¥€à¤®à¥‡à¤Ÿà¥à¤°à¥€ Â· à¤¹à¤¾à¤°à¥à¤¡à¤µà¥‡à¤¯à¤° à¤à¤¨à¥à¤•à¥à¤²à¥‡à¤µ à¤¸à¤•à¥à¤°à¤¿à¤¯"
   },
   kn: {
-    settings_title: "ಸೆಟ್ಟಿಂಗ್‌ಗಳು",
-    settings_theme: "ಥೀಮ್",
-    settings_lang: "ಭಾಷೆ",
-    theme_light: "ಲೈಟ್",
-    theme_dark: "ಡಾರ್ಕ್",
-    theme_system: "ಸಿಸ್ಟಮ್",
-    nav_chat: "ಚಾಟ್",
-    nav_knowledge: "ಜ್ಞಾನ",
-    nav_code: "ಕೋಡ್",
-    nav_models: "ಮಾದರಿಗಳು",
-    nav_logs: "ಲಾಗ್‌ಗಳು",
-    badge_offline: "ಆಫ್‌ಲೈನ್",
-    session_context: "ಸೆಷನ್ #4821-C · ಏರ್-ಗ್ಯಾಪ್ಡ್ ಎನ್‌ಕ್ಲೇವ್ · Gemma-3-4B-IT (ಲೋಕಲ್ Llama.cpp)",
-    role_operator: "ಆಪರೇಟರ್",
-    role_vault: "ವಾಲ್ಟ್",
-    msg_operator: "ಪರಿಶೀಲನಾ ವರದಿಯನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತು ತಕ್ಷಣ ಕ್ರಮ ಕೈಗೊಳ್ಳಬೇಕಾದ ಅಂಶಗಳನ್ನು ಗುರುತಿಸಿ.",
-    msg_vault_title: "ಮೂರು ಅಂಶಗಳಿಗೆ ತಕ್ಷಣ ಗಮನ ನೀಡಬೇಕಾಗಿದೆ.",
-    finding_1_bold: "ಒತ್ತಡದ ಅಸಹಜತೆ ಪತ್ತೆಯಾಗಿದೆ",
-    finding_1_body: "ಸೈಕಲ್ ಪರಿವರ್ತನೆಯ ಸಮಯದಲ್ಲಿ ಫೀಡ್‌ವಾಟರ್ ಪಂಪ್ 2B ಕೇಸಿಂಗ್‌ನಲ್ಲಿ.",
-    citation_1: "Inspection_Report.pdf · ಪು.14",
-    finding_2_bold: "ತುಕ್ಕು ಪತ್ತೆಯಾಗಿದೆ",
-    finding_2_body: "ದ್ವಿತೀಯ ಶಾಖ ವಿನಿಮಯಕಾರಕ ಬೈಪಾಸ್ ಫ್ಲೇಂಜ್ ವೆಲ್ಡ್ ಸೀಮ್‌ನಲ್ಲಿ.",
-    citation_2: "Inspection_Report.pdf · ಪು.22",
-    finding_3_bold: "ಪರಿಶೀಲನಾ ಅವಧಿ ಮೀರಿದೆ",
-    finding_3_body: "ಟರ್ಬೈನ್ ಐಸೋಲೇಷನ್ ರಿಲೀಫ್ ವಾಲ್ವ್ VR-408 ಗಾಗಿ 42 ದಿನಗಳು ಕಳೆದಿವೆ.",
-    citation_3: "Inspection_Report.pdf · ಪು.31",
-    recommendation_text: "ಶಿಫಾರಸು: ಸೈಕಲ್ 08 ಪ್ರಾರಂಭಕ್ಕೆ ಮುಂಚಿತವಾಗಿ ನಿರ್ವಹಣಾ ಆದೇಶಗಳನ್ನು ನೀಡಿ.",
-    status_step1: "ವರದಿಯನ್ನು ಓದಲಾಗುತ್ತಿದೆ",
-    status_step2: "ಜ್ಞಾನ ನೆಲೆ ಹುಡುಕಲಾಗುತ್ತಿದೆ",
-    status_step3: "ಪ್ರತಿಕ್ರಿಯೆ ಸಿದ್ಧಪಡಿಸಲಾಗುತ್ತಿದೆ",
-    tokens_metric: "4,120 / 64k ಟೋಕನ್‌ಗಳು",
-    quick_actions_label: "ತ್ವರಿತ ಕ್ರಿಯೆಗಳು:",
-    qa_analyze: "ದಾಖಲೆಯನ್ನು ವಿಶ್ಲೇಷಿಸಿ",
-    qa_search: "ಜ್ಞಾನ ಹುಡುಕಿ",
-    qa_code: "ಕೋಡ್ ಬರೆಯಿರಿ",
-    input_placeholder: "Vault ಅನ್ನು ಕೇಳಿ...",
-    attached_file: "Inspection_Report.pdf (ಲಗತ್ತಿಸಲಾಗಿದೆ)",
-    btn_return: "ರಿಟರ್ನ್",
-    footer_note: "ಸಾರ್ವಭೌಮ ಆನ್-ಪ್ರಿಮೈಸ್ ಕಾರ್ಯಾಚರಣೆ · ಶೂನ್ಯ ಬಾಹ್ಯ ಟೆಲಿಮೆಟ್ರಿ · ಹಾರ್ಡ್‌ವೇರ್ ಎನ್‌ಕ್ಲೇವ್ ಸಕ್ರಿಯ"
+    settings_title: "à²¸à³†à²Ÿà³à²Ÿà²¿à²‚à²—à³â€Œà²—à²³à³",
+    settings_theme: "à²¥à³€à²®à³",
+    settings_lang: "à²­à²¾à²·à³†",
+    theme_light: "à²²à³ˆà²Ÿà³",
+    theme_dark: "à²¡à²¾à²°à³à²•à³",
+    theme_system: "à²¸à²¿à²¸à³à²Ÿà²®à³",
+    nav_chat: "à²šà²¾à²Ÿà³",
+    nav_knowledge: "à²œà³à²žà²¾à²¨",
+    nav_code: "à²•à³‹à²¡à³",
+    nav_models: "à²®à²¾à²¦à²°à²¿à²—à²³à³",
+    nav_logs: "à²²à²¾à²—à³â€Œà²—à²³à³",
+    badge_offline: "à²†à²«à³â€Œà²²à³ˆà²¨à³",
+    session_context: "à²¸à³†à²·à²¨à³ #4821-C Â· à²à²°à³-à²—à³à²¯à²¾à²ªà³à²¡à³ à²Žà²¨à³â€Œà²•à³à²²à³‡à²µà³ Â· Gemma-3-4B-IT (à²²à³‹à²•à²²à³ Llama.cpp)",
+    role_operator: "à²†à²ªà²°à³‡à²Ÿà²°à³",
+    role_vault: "à²µà²¾à²²à³à²Ÿà³",
+    msg_operator: "à²ªà²°à²¿à²¶à³€à²²à²¨à²¾ à²µà²°à²¦à²¿à²¯à²¨à³à²¨à³ à²ªà²°à²¿à²¶à³€à²²à²¿à²¸à²¿ à²®à²¤à³à²¤à³ à²¤à²•à³à²·à²£ à²•à³à²°à²® à²•à³ˆà²—à³Šà²³à³à²³à²¬à³‡à²•à²¾à²¦ à²…à²‚à²¶à²—à²³à²¨à³à²¨à³ à²—à³à²°à³à²¤à²¿à²¸à²¿.",
+    msg_vault_title: "à²®à³‚à²°à³ à²…à²‚à²¶à²—à²³à²¿à²—à³† à²¤à²•à³à²·à²£ à²—à²®à²¨ à²¨à³€à²¡à²¬à³‡à²•à²¾à²—à²¿à²¦à³†.",
+    finding_1_bold: "à²’à²¤à³à²¤à²¡à²¦ à²…à²¸à²¹à²œà²¤à³† à²ªà²¤à³à²¤à³†à²¯à²¾à²—à²¿à²¦à³†",
+    finding_1_body: "à²¸à³ˆà²•à²²à³ à²ªà²°à²¿à²µà²°à³à²¤à²¨à³†à²¯ à²¸à²®à²¯à²¦à²²à³à²²à²¿ à²«à³€à²¡à³â€Œà²µà²¾à²Ÿà²°à³ à²ªà²‚à²ªà³ 2B à²•à³‡à²¸à²¿à²‚à²—à³â€Œà²¨à²²à³à²²à²¿.",
+    citation_1: "Inspection_Report.pdf Â· à²ªà³.14",
+    finding_2_bold: "à²¤à³à²•à³à²•à³ à²ªà²¤à³à²¤à³†à²¯à²¾à²—à²¿à²¦à³†",
+    finding_2_body: "à²¦à³à²µà²¿à²¤à³€à²¯ à²¶à²¾à²– à²µà²¿à²¨à²¿à²®à²¯à²•à²¾à²°à²• à²¬à³ˆà²ªà²¾à²¸à³ à²«à³à²²à³‡à²‚à²œà³ à²µà³†à²²à³à²¡à³ à²¸à³€à²®à³â€Œà²¨à²²à³à²²à²¿.",
+    citation_2: "Inspection_Report.pdf Â· à²ªà³.22",
+    finding_3_bold: "à²ªà²°à²¿à²¶à³€à²²à²¨à²¾ à²…à²µà²§à²¿ à²®à³€à²°à²¿à²¦à³†",
+    finding_3_body: "à²Ÿà²°à³à²¬à³ˆà²¨à³ à²à²¸à³‹à²²à³‡à²·à²¨à³ à²°à²¿à²²à³€à²«à³ à²µà²¾à²²à³à²µà³ VR-408 à²—à²¾à²—à²¿ 42 à²¦à²¿à²¨à²—à²³à³ à²•à²³à³†à²¦à²¿à²µà³†.",
+    citation_3: "Inspection_Report.pdf Â· à²ªà³.31",
+    recommendation_text: "à²¶à²¿à²«à²¾à²°à²¸à³: à²¸à³ˆà²•à²²à³ 08 à²ªà³à²°à²¾à²°à²‚à²­à²•à³à²•à³† à²®à³à²‚à²šà²¿à²¤à²µà²¾à²—à²¿ à²¨à²¿à²°à³à²µà²¹à²£à²¾ à²†à²¦à³‡à²¶à²—à²³à²¨à³à²¨à³ à²¨à³€à²¡à²¿.",
+    status_step1: "à²µà²°à²¦à²¿à²¯à²¨à³à²¨à³ à²“à²¦à²²à²¾à²—à³à²¤à³à²¤à²¿à²¦à³†",
+    status_step2: "à²œà³à²žà²¾à²¨ à²¨à³†à²²à³† à²¹à³à²¡à³à²•à²²à²¾à²—à³à²¤à³à²¤à²¿à²¦à³†",
+    status_step3: "à²ªà³à²°à²¤à²¿à²•à³à²°à²¿à²¯à³† à²¸à²¿à²¦à³à²§à²ªà²¡à²¿à²¸à²²à²¾à²—à³à²¤à³à²¤à²¿à²¦à³†",
+    tokens_metric: "4,120 / 64k à²Ÿà³‹à²•à²¨à³â€Œà²—à²³à³",
+    quick_actions_label: "à²¤à³à²µà²°à²¿à²¤ à²•à³à²°à²¿à²¯à³†à²—à²³à³:",
+    qa_analyze: "à²¦à²¾à²–à²²à³†à²¯à²¨à³à²¨à³ à²µà²¿à²¶à³à²²à³‡à²·à²¿à²¸à²¿",
+    qa_search: "à²œà³à²žà²¾à²¨ à²¹à³à²¡à³à²•à²¿",
+    qa_code: "à²•à³‹à²¡à³ à²¬à²°à³†à²¯à²¿à²°à²¿",
+    input_placeholder: "Vault à²…à²¨à³à²¨à³ à²•à³‡à²³à²¿...",
+    attached_file: "Inspection_Report.pdf (à²²à²—à²¤à³à²¤à²¿à²¸à²²à²¾à²—à²¿à²¦à³†)",
+    btn_return: "à²°à²¿à²Ÿà²°à³à²¨à³",
+    footer_note: "à²¸à²¾à²°à³à²µà²­à³Œà²® à²†à²¨à³-à²ªà³à²°à²¿à²®à³ˆà²¸à³ à²•à²¾à²°à³à²¯à²¾à²šà²°à²£à³† Â· à²¶à³‚à²¨à³à²¯ à²¬à²¾à²¹à³à²¯ à²Ÿà³†à²²à²¿à²®à³†à²Ÿà³à²°à²¿ Â· à²¹à²¾à²°à³à²¡à³â€Œà²µà³‡à²°à³ à²Žà²¨à³â€Œà²•à³à²²à³‡à²µà³ à²¸à²•à³à²°à²¿à²¯"
   }
 };
 
@@ -350,7 +350,7 @@ export default function ChatScreen({ onNavigate }) {
       id: `branch-${Date.now()}`,
       role: 'system_notice',
       time: getTimestamp(),
-      text: `⑂ Forked session branch from turn #${Math.floor(msgIndex / 2) + 1}. Context checkpoint saved.`,
+      text: `â‘‚ Forked session branch from turn #${Math.floor(msgIndex / 2) + 1}. Context checkpoint saved.`,
     };
     setMessages((prev) => [...prev.slice(0, msgIndex + 1), branchNotice]);
   };
@@ -446,7 +446,7 @@ export default function ChatScreen({ onNavigate }) {
         id: `vault-err-${Date.now()}`,
         role: 'vault',
         time: getTimestamp(),
-        text: `⚠️ Execution notice: Could not complete request through local enclave. (${err.message || 'Server unavailable'}). Please ensure backend and llama-server are running.`,
+        text: `âš ï¸ Execution notice: Could not complete request through local enclave. (${err.message || 'Server unavailable'}). Please ensure backend and llama-server are running.`,
         isError: true,
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -464,180 +464,7 @@ export default function ChatScreen({ onNavigate }) {
   };
 
   return (
-    <div className="w-full h-screen flex flex-col relative bg-[#F7F6F2] dark:bg-[#151614] text-[#20211F] dark:text-[#ECEAE3] pl-16 font-sans">
-      {/* ========================================================
-          SIDEBAR NAVIGATION
-         ======================================================== */}
-      <aside className="group/sidebar fixed top-0 left-0 bottom-0 h-screen w-16 hover:w-56 bg-[#FFFFFF] dark:bg-[#1C1E1B] border-r border-[#E2DED5] dark:border-[#34362F] z-50 flex flex-col justify-between py-4 px-2.5 transition-all duration-200 ease-in-out shadow-sm overflow-hidden select-none">
-        <div className="flex flex-col w-full gap-4">
-          {/* Logo / Badge */}
-          <div className="flex items-center gap-3 px-1.5 overflow-hidden">
-            <div className="w-8 h-8 rounded bg-[#176B5B] flex items-center justify-center text-white font-semibold text-[14px] shrink-0 shadow-sm" title="VAULT SOV-01">
-              <span className="w-2.5 h-2.5 bg-white rounded-[1px]"></span>
-            </div>
-            <div className="flex flex-col whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 min-w-0">
-              <span className="font-mono text-[12px] font-semibold text-[#20211F] dark:text-[#ECEAE3] tracking-wide leading-tight truncate">
-                VAULT SOV-01
-              </span>
-              <span className="font-mono text-[10px] text-[#77766F] dark:text-[#A6A69D] uppercase tracking-wider">
-                AIR-GAP v4.19
-              </span>
-            </div>
-          </div>
-
-          {/* Nav Items */}
-          <nav className="flex flex-col w-full gap-1.5 mt-2">
-            <button
-              onClick={() => onNavigate && onNavigate('chat')}
-              className="relative flex items-center gap-3 h-10 px-2 rounded-md bg-[#F1F7F5] dark:bg-[#1B2925] text-[#176B5B] dark:text-[#38A18C] transition-colors whitespace-nowrap overflow-hidden text-left"
-              title={t.nav_chat}
-            >
-              <span className="absolute left-0 top-2 bottom-2 w-0.5 bg-[#176B5B] rounded-r"></span>
-              <span className="material-symbols-outlined text-[20px] shrink-0">chat</span>
-              <span className="text-[13.5px] font-semibold opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200">
-                {t.nav_chat}
-              </span>
-            </button>
-
-            <button
-              onClick={() => onNavigate && onNavigate('kb')}
-              className="flex items-center gap-3 h-10 px-2 rounded-md text-[#77766F] dark:text-[#A6A69D] hover:text-[#20211F] dark:hover:text-[#ECEAE3] hover:bg-[#F0EEE8] dark:hover:bg-[#242620] transition-colors whitespace-nowrap overflow-hidden text-left"
-              title={t.nav_knowledge}
-            >
-              <span className="material-symbols-outlined text-[20px] shrink-0">menu_book</span>
-              <span className="text-[13.5px] font-medium opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200">
-                {t.nav_knowledge}
-              </span>
-            </button>
-
-            <button
-              onClick={() => onNavigate && onNavigate('code')}
-              className="flex items-center gap-3 h-10 px-2 rounded-md text-[#77766F] dark:text-[#A6A69D] hover:text-[#20211F] dark:hover:text-[#ECEAE3] hover:bg-[#F0EEE8] dark:hover:bg-[#242620] transition-colors whitespace-nowrap overflow-hidden text-left"
-              title={t.nav_code}
-            >
-              <span className="material-symbols-outlined text-[20px] shrink-0">code</span>
-              <span className="text-[13.5px] font-medium opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200">
-                {t.nav_code}
-              </span>
-            </button>
-
-            <button
-              onClick={() => onNavigate && onNavigate('models')}
-              className="flex items-center gap-3 h-10 px-2 rounded-md text-[#77766F] dark:text-[#A6A69D] hover:text-[#20211F] dark:hover:text-[#ECEAE3] hover:bg-[#F0EEE8] dark:hover:bg-[#242620] transition-colors whitespace-nowrap overflow-hidden text-left"
-              title={t.nav_models}
-            >
-              <span className="material-symbols-outlined text-[20px] shrink-0">deployed_code</span>
-              <span className="text-[13.5px] font-medium opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200">
-                {t.nav_models}
-              </span>
-            </button>
-
-            <button
-              onClick={() => onNavigate && onNavigate('logs')}
-              className="flex items-center gap-3 h-10 px-2 rounded-md text-[#77766F] dark:text-[#A6A69D] hover:text-[#20211F] dark:hover:text-[#ECEAE3] hover:bg-[#F0EEE8] dark:hover:bg-[#242620] transition-colors whitespace-nowrap overflow-hidden text-left"
-              title={t.nav_logs}
-            >
-              <span className="material-symbols-outlined text-[20px] shrink-0">receipt_long</span>
-              <span className="text-[13.5px] font-medium opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200">
-                {t.nav_logs}
-              </span>
-            </button>
-          </nav>
-        </div>
-
-        {/* Sidebar Footer: Health status & Settings Popover */}
-        <div className="flex flex-col w-full gap-3">
-          {/* Status Indicator */}
-          <div
-            className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-[#F0EEE8] dark:hover:bg-[#242620] transition-colors cursor-pointer overflow-hidden whitespace-nowrap"
-            title={`Backend: ${backendStatus} · Model: ${modelStatus}`}
-          >
-            <div className="w-6 flex items-center justify-center shrink-0">
-              <span
-                className={`w-2.5 h-2.5 rounded-full ${
-                  backendStatus === 'healthy' ? 'bg-[#176B5B] animate-pulse' : 'bg-[#D96B32]'
-                }`}
-              ></span>
-            </div>
-            <div className="flex flex-col opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 min-w-0">
-              <span className="font-mono text-[11px] text-[#176B5B] dark:text-[#38A18C] font-semibold uppercase tracking-wider leading-none">
-                {backendStatus === 'healthy' ? 'CONNECTED' : t.badge_offline}
-              </span>
-              <span className="text-[11px] text-[#77766F] dark:text-[#A6A69D] leading-tight truncate">
-                {backendStatus === 'healthy' ? 'Air-gapped safe' : 'Backend link standby'}
-              </span>
-            </div>
-          </div>
-
-          {/* Settings Trigger & Popover */}
-          <div className="relative flex items-center" ref={settingsPopoverRef}>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsSettingsOpen(!isSettingsOpen);
-              }}
-              className="w-full h-10 px-2 rounded-md flex items-center gap-3 text-[#77766F] dark:text-[#A6A69D] hover:text-[#20211F] dark:hover:text-[#ECEAE3] hover:bg-[#F0EEE8] dark:hover:bg-[#242620] border border-[#E2DED5] dark:border-[#34362F] transition-colors overflow-hidden whitespace-nowrap"
-              title={t.settings_title}
-            >
-              <span className="material-symbols-outlined text-[20px] shrink-0">tune</span>
-              <span className="text-[13.5px] font-medium opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200">
-                {t.settings_title}
-              </span>
-            </button>
-
-            {/* Popover */}
-            {isSettingsOpen && (
-              <div className="absolute left-full bottom-0 ml-2 w-64 bg-[#FFFFFF] dark:bg-[#1C1E1B] border border-[#E2DED5] dark:border-[#34362F] rounded-lg shadow-xl p-3 z-50 flex flex-col gap-3 font-sans">
-                <div className="flex flex-col gap-1.5">
-                  <label className="font-mono text-[10px] text-[#77766F] dark:text-[#A6A69D] uppercase tracking-wider font-semibold">
-                    {t.settings_theme}
-                  </label>
-                  <div className="grid grid-cols-3 gap-1 bg-[#F0EEE8] dark:bg-[#242620] p-1 rounded border border-[#E2DED5] dark:border-[#34362F]">
-                    {['light', 'dark', 'system'].map((theme) => (
-                      <button
-                        key={theme}
-                        onClick={() => applyTheme(theme)}
-                        className={`text-[11.5px] py-1 rounded-[4px] font-medium transition-colors ${
-                          currentTheme === theme
-                            ? 'text-[#20211F] dark:text-[#ECEAE3] bg-[#FFFFFF] dark:bg-[#1C1E1B] shadow-sm'
-                            : 'text-[#77766F] dark:text-[#A6A69D] hover:text-[#20211F] dark:hover:text-[#ECEAE3]'
-                        }`}
-                      >
-                        {t[`theme_${theme}`] || theme}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="font-mono text-[10px] text-[#77766F] dark:text-[#A6A69D] uppercase tracking-wider font-semibold">
-                    {t.settings_lang}
-                  </label>
-                  <div className="grid grid-cols-3 gap-1 bg-[#F0EEE8] dark:bg-[#242620] p-1 rounded border border-[#E2DED5] dark:border-[#34362F]">
-                    {[
-                      { code: 'en', label: 'EN' },
-                      { code: 'hi', label: 'हिन्दी' },
-                      { code: 'kn', label: 'ಕನ್ನಡ' },
-                    ].map((item) => (
-                      <button
-                        key={item.code}
-                        onClick={() => switchLang(item.code)}
-                        className={`py-1 px-1.5 text-center text-[11.5px] font-medium rounded transition-colors ${
-                          currentLang === item.code
-                            ? 'bg-[#FFFFFF] dark:bg-[#1C1E1B] text-[#20211F] dark:text-[#ECEAE3] shadow-sm'
-                            : 'text-[#77766F] dark:text-[#A6A69D] hover:text-[#20211F] dark:hover:text-[#ECEAE3]'
-                        }`}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </aside>
+    <div className="w-full h-screen flex flex-col relative bg-[#F7F6F2] dark:bg-[#151614] text-[#20211F] dark:text-[#ECEAE3] font-sans">
 
       {/* ========================================================
           MAIN CHAT CONTAINER
@@ -719,9 +546,9 @@ export default function ChatScreen({ onNavigate }) {
                     className="w-full flex items-center justify-center my-3 select-none"
                   >
                     <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#EAE7DF] dark:bg-[#1E201C] border border-[#DDD9CE] dark:border-[#30332B] text-[11px] font-mono text-[#77766F] dark:text-[#A6A69D] shadow-sm">
-                      <span className="text-[#176B5B] dark:text-[#38A18C] font-bold">⑂</span>
+                      <span className="text-[#176B5B] dark:text-[#38A18C] font-bold">â‘‚</span>
                       <span>{m.text}</span>
-                      <span className="text-[9.5px] text-[#A09E96]">· {m.time}</span>
+                      <span className="text-[9.5px] text-[#A09E96]">Â· {m.time}</span>
                     </div>
                   </motion.div>
                 );
@@ -758,7 +585,7 @@ export default function ChatScreen({ onNavigate }) {
                             />
                           )}
                           <div className="p-2 bg-[#E8E6DE] dark:bg-[#252823] text-[11px] font-mono text-[#77766F] dark:text-[#A6A69D] flex items-center justify-between">
-                            <span className="truncate max-w-[190px]">📷 {m.attachment.name}</span>
+                            <span className="truncate max-w-[190px]">ðŸ“· {m.attachment.name}</span>
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#176B5B]/10 text-[#176B5B] dark:text-[#38A18C] font-semibold">
                               Vision Input
                             </span>
@@ -836,7 +663,7 @@ export default function ChatScreen({ onNavigate }) {
                           <div key={j} className="flex items-center gap-2 text-[#20211F] dark:text-[#ECEAE3]">
                             <span className="w-1.5 h-1.5 rounded-full bg-[#176B5B]"></span>
                             <span>Tool: <b>{tc.tool}</b></span>
-                            <span className="text-[#77766F]">→</span>
+                            <span className="text-[#77766F]">â†’</span>
                             <span className={tc.success ? "text-[#176B5B]" : "text-[#D96B32]"}>
                               {tc.success ? `Result: ${JSON.stringify(tc.output ?? 'OK')}` : `Error: ${tc.error}`}
                             </span>
@@ -912,7 +739,7 @@ export default function ChatScreen({ onNavigate }) {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#176B5B]"></span>
               </span>
               <span>{isSending ? (statusText || 'Working...') : 'Air-gapped enclave ready'}</span>
-              <span className="text-[#A09E96] dark:text-[#777970]">·</span>
+              <span className="text-[#A09E96] dark:text-[#777970]">Â·</span>
               <span>Local llama-server :8080</span>
             </div>
             <span className="font-mono text-[10.5px] text-[#A09E96] dark:text-[#777970]">
@@ -993,11 +820,11 @@ export default function ChatScreen({ onNavigate }) {
                         </span>
                       ) : attachedFile.status === 'ready' ? (
                         <span className="text-[#176B5B] dark:text-[#38A18C] font-semibold flex items-center gap-1">
-                          ✓ Indexed in Enclave ({attachedFile.chunks || 'ready'} chunks) · RAG Grounded
+                          âœ“ Indexed in Enclave ({attachedFile.chunks || 'ready'} chunks) Â· RAG Grounded
                         </span>
                       ) : (
                         <span className="text-red-500 font-medium">
-                          ⚠ {attachedFile.error || 'Ingestion failed'}
+                          âš  {attachedFile.error || 'Ingestion failed'}
                         </span>
                       )}
                     </div>
@@ -1095,7 +922,7 @@ export default function ChatScreen({ onNavigate }) {
 
               <div className="flex items-center space-x-3">
                 <span className="font-mono text-[10.5px] text-[#77766F] dark:text-[#A6A69D] select-none">
-                  ⏎ <span>{t.btn_return}</span>
+                  âŽ <span>{t.btn_return}</span>
                 </span>
                 <button
                   type="button"
