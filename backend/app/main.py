@@ -150,10 +150,10 @@ def create_app() -> FastAPI:
         effective_threshold = settings.neural_similarity_threshold
 
     meta_store = KnowledgeMetadataStore(db_path=settings.knowledge_db_path)
-    vector_store = PersistentVectorStore(
+    from app.knowledge.qdrant_store import QdrantVectorStore
+    vector_store = QdrantVectorStore(
         storage_dir=settings.vector_storage_path,
         expected_dimension=embedding_config.dimension,
-        embedding_fingerprint=embedding_config.fingerprint(),
     )
 
     ingestion_service = KnowledgeIngestionService(
