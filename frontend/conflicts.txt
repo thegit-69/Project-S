@@ -1,0 +1,5 @@
+kb.extend.fontFamily.sans: ['Inter', 'system-ui', '-apple-system', '"Noto Sans Devanagari"', '"Noto Sans Kannada"', 'sans-serif'] -> ['Inter', 'Noto Sans Devanagari', 'Noto Sans Kannada', 'sans-serif']
+kb.extend.fontFamily.mono: ['"JetBrains Mono"', 'monospace'] -> ['JetBrains Mono', 'monospace']
+models.extend.colors.background: var(--bg-workbench) -> var(--color-background)
+models.extend.colors.surface: var(--bg-surface) -> var(--color-surface)
+models.extend.colors.error: #ba1a1a -> #BA1A1A
