@@ -77,7 +77,7 @@ class CalculatorTool(Tool):
                 error="Expression must be a non-empty string.",
             )
 
-        expression = expression.strip()
+        expression = expression.strip().rstrip("?=").strip()
 
         try:
             tree = ast.parse(expression, mode="eval")

@@ -105,6 +105,7 @@ class RAGService:
         top_k: int = 5,
         max_context_chars: int = _MAX_CONTEXT_CHARS,
         similarity_threshold: float | None = None,
+        document_id: str | None = None,
     ) -> RAGResponse:
         """Execute a RAG query.
 
@@ -130,6 +131,7 @@ class RAGService:
             query=query,
             top_k=top_k,
             similarity_threshold=threshold,
+            document_id=document_id,
         )
 
         # Classify evidence quality from retrieved results
@@ -198,10 +200,17 @@ class RAGService:
 
             answer = response.text
             model_name = response.model_name
+            tokens_used = getattr(response, "tokens_used", None)
+            meta = getattr(response, "metadata", {}) or {}
+            tokens_per_sec = meta.get("tokens_per_second")
+            timings = meta.get("timings", {})
         except Exception as exc:
             logger.error("RAG generation failed: %s", exc)
             answer = f"Generation failed: {exc}"
             model_name = "error"
+            tokens_used = None
+            tokens_per_sec = None
+            timings = {}
 
         gen_time = (time.monotonic() - gen_start) * 1000
 
@@ -238,5 +247,8 @@ class RAGService:
             context_construction_time_ms=round(context_time, 2),
             similarity_threshold=threshold,
             candidates_count=len(results),
+            tokens_used=tokens_used,
+            tokens_per_second=tokens_per_sec,
+            timings=timings,
             metrics=metrics,
         )

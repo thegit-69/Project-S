@@ -258,6 +258,11 @@ class AgentOrchestrator:
                 metadata={
                     "tokens_used": response.tokens_used,
                     "provider": provider_type,
+                    "tokens_per_second": response.metadata.get("tokens_per_second"),
+                    "prompt_tokens": response.metadata.get("prompt_tokens"),
+                    "completion_tokens": response.metadata.get("completion_tokens"),
+                    "total_tokens": response.metadata.get("total_tokens"),
+                    "timings": response.metadata.get("timings", {}),
                 },
             )
 

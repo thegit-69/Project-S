@@ -57,7 +57,7 @@ class VectorStore(ABC):
 
     @abstractmethod
     def search(
-        self, query_vector: np.ndarray, top_k: int = 5
+        self, query_vector: np.ndarray, top_k: int = 5, filters: dict[str, Any] | None = None
     ) -> list[VectorStoreResult]:
         """Search for the top_k most similar vectors.
 

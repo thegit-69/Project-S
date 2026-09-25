@@ -41,6 +41,11 @@ def build_citations(results: list[RetrievalResult]) -> list[Citation]:
         )
         if loc_key in seen:
             continue
+        
+        snippet = result.chunk.text.strip() if result.chunk.text else ""
+        if not snippet:
+            continue
+
         seen.add(loc_key)
 
         citations.append(
@@ -51,6 +56,7 @@ def build_citations(results: list[RetrievalResult]) -> list[Citation]:
                 section=result.section,
                 chunk_id=result.chunk.chunk_id,
                 relevance_score=round(result.score, 4),
+                snippet=result.chunk.text,
             )
         )
 

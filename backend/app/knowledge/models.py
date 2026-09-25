@@ -153,6 +153,7 @@ class Citation(BaseModel):
     section: str | None = None
     chunk_id: str | None = None
     relevance_score: float | None = None
+    snippet: str | None = None
 
 
 class RAGResponse(BaseModel):
@@ -176,6 +177,9 @@ class RAGResponse(BaseModel):
     context_construction_time_ms: float = 0.0
     similarity_threshold: float = 0.0
     candidates_count: int = 0
+    tokens_used: int | None = None
+    tokens_per_second: float | None = None
+    timings: dict[str, Any] = Field(default_factory=dict)
     metrics: RAGMetrics | None = None
 
 

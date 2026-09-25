@@ -125,10 +125,34 @@ class LlamaCppProvider(ModelProvider):
 
     def generate(self, request: GenerationRequest) -> GenerationResponse:
         """Execute chat completion request against local llama.cpp endpoint."""
-        messages: list[dict[str, str]] = []
+        import base64
+        from pathlib import Path
+
+        messages: list[dict[str, Any]] = []
         if request.system_prompt:
             messages.append({"role": "system", "content": request.system_prompt})
-        messages.append({"role": "user", "content": request.prompt})
+
+        if request.images and len(request.images) > 0:
+            user_content: list[dict[str, Any]] = [{"type": "text", "text": request.prompt}]
+            for img in request.images:
+                url = None
+                if img.base64_data:
+                    if img.base64_data.startswith("data:"):
+                        url = img.base64_data
+                    else:
+                        media_type = img.media_type or "image/png"
+                        url = f"data:{media_type};base64,{img.base64_data}"
+                elif img.path:
+                    p = Path(img.path)
+                    if p.exists():
+                        b64 = base64.b64encode(p.read_bytes()).decode("utf-8")
+                        media_type = img.media_type or "image/png"
+                        url = f"data:{media_type};base64,{b64}"
+                if url:
+                    user_content.append({"type": "image_url", "image_url": {"url": url}})
+            messages.append({"role": "user", "content": user_content})
+        else:
+            messages.append({"role": "user", "content": request.prompt})
 
         payload = {
             "model": self._model_id,
@@ -167,11 +191,33 @@ class LlamaCppProvider(ModelProvider):
             raise LlamaCppProviderError("llama.cpp returned empty choices in response.")
 
         text = choices[0].get("message", {}).get("content", "")
-        tokens_used = data.get("usage", {}).get("total_tokens")
+        usage = data.get("usage", {})
+        timings = data.get("timings", {})
+        tokens_used = usage.get("total_tokens") or usage.get("completion_tokens")
+
+        tokens_per_sec = timings.get("predicted_per_second")
+        if tokens_per_sec is not None:
+            tokens_per_sec = round(float(tokens_per_sec), 2)
+        elif tokens_used and timings.get("predicted_ms"):
+            pred_s = float(timings["predicted_ms"]) / 1000.0
+            if pred_s > 0:
+                tokens_per_sec = round(float(tokens_used) / pred_s, 2)
 
         return GenerationResponse(
             text=text,
             model_name=self.get_name(),
             tokens_used=tokens_used,
-            metadata={"provider": "llama_cpp", "local": True},
+            metadata={
+                "provider": "llama_cpp",
+                "local": True,
+                "usage": usage,
+                "timings": timings,
+                "tokens_per_second": tokens_per_sec,
+                "prompt_tokens": usage.get("prompt_tokens"),
+                "completion_tokens": usage.get("completion_tokens"),
+                "total_tokens": usage.get("total_tokens"),
+                "prompt_eval_ms": timings.get("prompt_ms"),
+                "eval_ms": timings.get("predicted_ms"),
+            },
         )
+

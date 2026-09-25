@@ -13,6 +13,17 @@
       overflow-x: hidden; overflow-y: auto;
     }
 
+    /* Sovereign Theme Selection Color */
+    ::selection {
+      background-color: #C3E2D9 !important;
+      color: #0E4237 !important;
+    }
+    html.dark ::selection {
+      background-color: #174E43 !important;
+      color: #72EAD3 !important;
+    }
+
+
     /* Subtle custom scrollbar */
     ::-webkit-scrollbar {
       width: 5px;
@@ -373,3 +384,102 @@ html.dark {
   }
 
 :root { --color-page-bg: #FAF8F5 !important; --color-card-bg: #F0F7EE !important; --color-border-subtle: #E5E0D5 !important; --color-chip-bg: #F2EFE8 !important; --color-accent-tint: #E8F4F0 !important; --color-accent-burnt: #176B5B !important; --color-text-primary: #1C1E1B !important; --color-text-muted: #6B706B !important; --color-text-placeholder: #9EA39D !important; } html.dark { --color-page-bg: #151716 !important; --color-card-bg: #1C1F1D !important; --color-border-subtle: #2F3532 !important; --color-chip-bg: #242926 !important; --color-accent-tint: #102B24 !important; --color-text-primary: #EDEFEA !important; --color-text-muted: #8E9690 !important; --color-text-placeholder: #5C635F !important; } .bg-accent-tint { background-color: #E8F4F0 !important; } .border-accent-border { border-color: #D3E7E1 !important; } .bg-white { background-color: #F0F7EE !important; }
+
+/* ========================================================
+   VAULT PROSE & MARKDOWN STYLING
+   ======================================================== */
+.vault-prose p {
+  margin-top: 0.45rem;
+  margin-bottom: 0.45rem;
+  line-height: 1.65;
+}
+.vault-prose h1, .vault-prose h2, .vault-prose h3, .vault-prose h4 {
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.4rem;
+  color: inherit;
+}
+.vault-prose h1 { font-size: 1.25rem; }
+.vault-prose h2 { font-size: 1.15rem; }
+.vault-prose h3 { font-size: 1.05rem; }
+.vault-prose ul {
+  list-style-type: disc;
+  padding-left: 1.35rem;
+  margin-top: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+.vault-prose ol {
+  list-style-type: decimal;
+  padding-left: 1.35rem;
+  margin-top: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+.vault-prose li {
+  margin-bottom: 0.35rem;
+  line-height: 1.6;
+}
+.vault-prose li > ul, .vault-prose li > ol {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+.vault-prose strong {
+  font-weight: 600;
+  color: inherit;
+}
+.vault-prose em {
+  font-style: italic;
+}
+.vault-prose blockquote {
+  border-left: 3px solid #176B5B;
+  padding-left: 0.85rem;
+  margin: 0.6rem 0;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+.vault-prose code:not(pre code) {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.825rem;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  background-color: #EAE7DE;
+  border: 1px solid #DDD8CD;
+  color: #C05822;
+}
+html.dark .vault-prose code:not(pre code) {
+  background-color: #242823;
+  border: 1px solid #333832;
+  color: #E28859;
+}
+.vault-prose hr {
+  border: none;
+  border-top: 1px solid var(--color-border-subtle);
+  margin: 1.25rem 0;
+}
+
+/* Prism Token Syntax Highlighting */
+.token.comment, .token.prolog, .token.doctype, .token.cdata {
+  color: #7A818E;
+  font-style: italic;
+}
+.token.punctuation {
+  color: #ABB2BF;
+}
+.token.property, .token.tag, .token.boolean, .token.number, .token.constant, .token.symbol, .token.deleted {
+  color: #E5C07B;
+}
+.token.selector, .token.attr-name, .token.string, .token.char, .token.builtin, .token.inserted {
+  color: #98C379;
+}
+.token.operator, .token.entity, .token.url, .language-css .token.string, .style .token.string {
+  color: #56B6C2;
+}
+.token.atrule, .token.attr-value, .token.keyword {
+  color: #C678DD;
+}
+.token.function, .token.class-name {
+  color: #61AFEF;
+}
+.token.regex, .token.important, .token.variable {
+  color: #E06C75;
+}
+

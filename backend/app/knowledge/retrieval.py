@@ -108,6 +108,7 @@ class KnowledgeRetriever:
         query: str,
         top_k: int | None = None,
         similarity_threshold: float | None = None,
+        document_id: str | None = None,
     ) -> tuple[list[RetrievalResult], float]:
         """Retrieve the top-k most relevant chunks for a query.
 
@@ -137,7 +138,8 @@ class KnowledgeRetriever:
         query_vector = self._embedder.embed(query)
 
         # Search vector store (request extra candidates for threshold filtering)
-        vs_results = self._store.search(query_vector, top_k=k * 2)
+        filters = {"document_id": document_id} if document_id else None
+        vs_results = self._store.search(query_vector, top_k=k * 2, filters=filters)
 
         # Build RetrievalResults with full provenance, applying threshold
         results: list[RetrievalResult] = []

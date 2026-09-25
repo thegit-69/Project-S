@@ -166,7 +166,7 @@ class TaskPlanner:
             re.IGNORECASE,
         )
         if m:
-            return m.group(1).strip().rstrip(".")
+            return m.group(1).strip().rstrip(".?!=").strip()
 
         # Pattern: standalone arithmetic expression.
         m = re.search(r"([\d\s\+\-\*\/\(\)\.\%]+)", task)

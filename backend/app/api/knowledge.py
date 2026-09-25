@@ -13,6 +13,7 @@ Endpoints for knowledge base management and RAG queries:
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -47,6 +48,7 @@ class SearchRequest(BaseModel):
     query: str
     top_k: int = Field(default=5, ge=1, le=50)
     similarity_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    document_id: str | None = None
 
 
 class SearchResult(BaseModel):
@@ -70,6 +72,7 @@ class QueryRequest(BaseModel):
     query: str
     top_k: int = Field(default=5, ge=1, le=50)
     similarity_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    document_id: str | None = None
 
 
 class QueryResponse(BaseModel):
@@ -84,6 +87,9 @@ class QueryResponse(BaseModel):
     evidence_sufficient: bool
     evidence_quality: str = EvidenceQuality.NO_EVIDENCE.value
     similarity_threshold: float = 0.0
+    tokens_used: int | None = None
+    tokens_per_second: float | None = None
+    timings: dict[str, Any] = Field(default_factory=dict)
 
 
 class KnowledgeDocumentResponse(BaseModel):
@@ -192,6 +198,7 @@ def search_knowledge(body: SearchRequest, request: Request) -> SearchResponse:
         query=body.query,
         top_k=body.top_k,
         similarity_threshold=body.similarity_threshold,
+        document_id=body.document_id,
     )
 
     from app.knowledge.retrieval import classify_evidence
@@ -246,6 +253,7 @@ def query_knowledge(body: QueryRequest, request: Request) -> QueryResponse:
             query=body.query,
             top_k=body.top_k,
             similarity_threshold=body.similarity_threshold,
+            document_id=body.document_id,
         )
     except Exception as exc:
         logger.error("RAG query failed: %s", exc)
@@ -284,6 +292,9 @@ def query_knowledge(body: QueryRequest, request: Request) -> QueryResponse:
         evidence_sufficient=rag_response.evidence_sufficient,
         evidence_quality=rag_response.evidence_quality.value,
         similarity_threshold=rag_response.similarity_threshold,
+        tokens_used=rag_response.tokens_used,
+        tokens_per_second=rag_response.tokens_per_second,
+        timings=rag_response.timings,
     )
 
 

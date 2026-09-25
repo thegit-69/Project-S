@@ -194,7 +194,7 @@ class PersistentVectorStore(VectorStore):
             self.save()
 
     def search(
-        self, query_vector: np.ndarray, top_k: int = 5
+        self, query_vector: np.ndarray, top_k: int = 5, filters: dict[str, Any] | None = None
     ) -> list[VectorStoreResult]:
         self._assert_healthy()
 
@@ -210,6 +210,11 @@ class PersistentVectorStore(VectorStore):
         norms = np.linalg.norm(matrix, axis=1)
 
         valid_mask = norms > 0
+        if filters:
+            for k_filt, v_filt in filters.items():
+                if k_filt == "document_id":
+                    doc_mask = np.array([m.get("document_id") == v_filt for m in self._metadatas])
+                    valid_mask = valid_mask & doc_mask
         similarities = np.zeros(len(matrix))
         if valid_mask.any():
             similarities[valid_mask] = (
