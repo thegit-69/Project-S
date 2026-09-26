@@ -364,8 +364,9 @@ def create_app() -> FastAPI:
     app.include_router(documents_api.router)
     app.include_router(knowledge_api.router)
     
-    from app.api import retrieval
+    from app.api import retrieval, chat
     app.include_router(retrieval.router)
+    app.include_router(chat.router)
 
     return app
 
