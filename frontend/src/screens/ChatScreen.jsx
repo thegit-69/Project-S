@@ -6,6 +6,7 @@ import {
   getSystemHealth,
   getModelsHealth,
   uploadAndIngestDocument,
+  listModelCatalog,
 } from '../services/api.js'
 import MarkdownMessage from '../components/MarkdownMessage.jsx'
 import LlamaMessageFooter from '../components/LlamaMessageFooter.jsx'
@@ -52,90 +53,8 @@ const I18N = {
     input_placeholder: "Ask Vault...",
     attached_file: "Inspection_Report.pdf (attached)",
     btn_return: "return",
-    footer_note: "Sovereign on-premise execution Â· Zero external telemetry Â· Hardware enclave active"
+    footer_note: "Sovereign on-premise Ai workbench · Zero external network requests"
   },
-  hi: {
-    settings_title: "à¤¸à¥‡à¤Ÿà¤¿à¤‚à¤—à¥à¤¸",
-    settings_theme: "à¤¥à¥€à¤®",
-    settings_lang: "à¤­à¤¾à¤·à¤¾",
-    theme_light: "à¤²à¤¾à¤‡à¤Ÿ",
-    theme_dark: "à¤¡à¤¾à¤°à¥à¤•",
-    theme_system: "à¤¸à¤¿à¤¸à¥à¤Ÿà¤®",
-    nav_chat: "à¤šà¥ˆà¤Ÿ",
-    nav_knowledge: "à¤œà¥à¤žà¤¾à¤¨",
-    nav_code: "à¤•à¥‹à¤¡",
-    nav_models: "à¤®à¥‰à¤¡à¤²",
-    nav_logs: "à¤²à¥‰à¤—",
-    badge_offline: "à¤‘à¤«à¤¼à¤²à¤¾à¤‡à¤¨",
-    session_context: "à¤¸à¤¤à¥à¤° #4821-C Â· à¤à¤¯à¤°-à¤—à¥ˆà¤ªà¥à¤¡ à¤à¤¨à¥à¤•à¥à¤²à¥‡à¤µ Â· Gemma-3-4B-IT (à¤¸à¥à¤¥à¤¾à¤¨à¥€à¤¯ Llama.cpp)",
-    role_operator: "à¤‘à¤ªà¤°à¥‡à¤Ÿà¤°",
-    role_vault: "à¤µà¥‰à¤²à¥à¤Ÿ",
-    msg_operator: "à¤¨à¤¿à¤°à¥€à¤•à¥à¤·à¤£ à¤°à¤¿à¤ªà¥‹à¤°à¥à¤Ÿ à¤•à¥€ à¤¸à¤®à¥€à¤•à¥à¤·à¤¾ à¤•à¤°à¥‡à¤‚ à¤”à¤° à¤‰à¤¨ à¤¨à¤¿à¤·à¥à¤•à¤°à¥à¤·à¥‹à¤‚ à¤•à¥€ à¤ªà¤¹à¤šà¤¾à¤¨ à¤•à¤°à¥‡à¤‚ à¤œà¤¿à¤¨ à¤ªà¤° à¤¤à¤¤à¥à¤•à¤¾à¤² à¤•à¤¾à¤°à¥à¤°à¤µà¤¾à¤ˆ à¤†à¤µà¤¶à¥à¤¯à¤• à¤¹à¥ˆà¥¤",
-    msg_vault_title: "à¤¤à¥€à¤¨ à¤¨à¤¿à¤·à¥à¤•à¤°à¥à¤·à¥‹à¤‚ à¤ªà¤° à¤¤à¤¤à¥à¤•à¤¾à¤² à¤§à¥à¤¯à¤¾à¤¨ à¤¦à¥‡à¤¨à¥‡ à¤•à¥€ à¤†à¤µà¤¶à¥à¤¯à¤•à¤¤à¤¾ à¤¹à¥ˆà¥¤",
-    finding_1_bold: "à¤¦à¤¬à¤¾à¤µ à¤µà¤¿à¤¸à¤‚à¤—à¤¤à¤¿ à¤•à¤¾ à¤ªà¤¤à¤¾ à¤šà¤²à¤¾",
-    finding_1_body: "à¤¸à¤¾à¤‡à¤•à¤¿à¤² à¤¸à¤‚à¤•à¥à¤°à¤®à¤£ à¤•à¥‡ à¤¦à¥Œà¤°à¤¾à¤¨ à¤«à¥€à¤¡à¤µà¤¾à¤Ÿà¤° à¤ªà¤‚à¤ª 2B à¤†à¤µà¤°à¤£ à¤ªà¤°à¥¤ à¤…à¤²à¥à¤Ÿà¥à¤°à¤¾à¤¸à¥‹à¤¨à¤¿à¤• à¤°à¥€à¤¡à¤¿à¤‚à¤— à¤¬à¥‡à¤¸à¤²à¤¾à¤‡à¤¨ à¤¸à¥€à¤®à¤¾ à¤¸à¥‡ 18.4% à¤…à¤§à¤¿à¤• à¤¹à¥ˆà¥¤",
-    citation_1: "Inspection_Report.pdf Â· à¤ªà¥ƒ.14",
-    finding_2_bold: "à¤¸à¤‚à¤•à¥à¤·à¤¾à¤°à¤£ à¤•à¥€ à¤ªà¤¹à¤šà¤¾à¤¨ à¤•à¥€ à¤—à¤ˆ",
-    finding_2_body: "à¤¦à¥à¤µà¤¿à¤¤à¥€à¤¯à¤• à¤¹à¥€à¤Ÿ à¤à¤•à¥à¤¸à¤šà¥‡à¤‚à¤œà¤° à¤¬à¤¾à¤ˆà¤ªà¤¾à¤¸ à¤¨à¤¿à¤•à¤²à¤¾ à¤¹à¥à¤† à¤•à¤¿à¤¨à¤¾à¤°à¤¾ à¤µà¥‡à¤²à¥à¤¡ à¤¸à¥€à¤® à¤®à¥‡à¤‚à¥¤ à¤¦à¥€à¤µà¤¾à¤° à¤•à¥€ à¤®à¥‹à¤Ÿà¤¾à¤ˆ à¤¸à¥à¤µà¥€à¤•à¤¾à¤°à¥à¤¯ à¤¸à¥à¤°à¤•à¥à¤·à¤¾ à¤¸à¥€à¤®à¤¾ à¤¸à¥‡ à¤•à¤®à¥¤",
-    citation_2: "Inspection_Report.pdf Â· à¤ªà¥ƒ.22",
-    finding_3_bold: "à¤¨à¤¿à¤°à¥€à¤•à¥à¤·à¤£ à¤…à¤‚à¤¤à¤°à¤¾à¤² à¤¸à¤®à¤¾à¤ªà¥à¤¤",
-    finding_3_body: "à¤Ÿà¤°à¥à¤¬à¤¾à¤‡à¤¨ à¤†à¤‡à¤¸à¥‹à¤²à¥‡à¤¶à¤¨ à¤°à¤¿à¤²à¥€à¤« à¤µà¤¾à¤²à¥à¤µ VR-408 à¤•à¥‡ à¤²à¤¿à¤ 42 à¤¦à¤¿à¤¨ à¤¬à¥€à¤¤ à¤šà¥à¤•à¥‡ à¤¹à¥ˆà¤‚à¥¤",
-    citation_3: "Inspection_Report.pdf Â· à¤ªà¥ƒ.31",
-    recommendation_text: "à¤¸à¤¿à¤«à¤¾à¤°à¤¿à¤¶: à¤šà¤•à¥à¤° 08 à¤ªà¥à¤°à¤¾à¤°à¤‚à¤­ à¤¸à¥‡ à¤ªà¤¹à¤²à¥‡ à¤ªà¤‚à¤ª 2B à¤”à¤° à¤µà¤¾à¤²à¥à¤µ VR-408 à¤•à¥‡ à¤²à¤¿à¤ à¤°à¤–à¤°à¤–à¤¾à¤µ à¤•à¤¾à¤°à¥à¤¯ à¤†à¤¦à¥‡à¤¶ à¤œà¤¾à¤°à¥€ à¤•à¤°à¥‡à¤‚à¥¤",
-    status_step1: "à¤¦à¤¸à¥à¤¤à¤¾à¤µà¥‡à¤œà¤¼ à¤ªà¤¢à¤¼à¤¾ à¤œà¤¾ à¤°à¤¹à¤¾ à¤¹à¥ˆ",
-    status_step2: "à¤¸à¥à¤¥à¤¾à¤¨à¥€à¤¯ à¤œà¥à¤žà¤¾à¤¨ à¤®à¥‡à¤‚ à¤–à¥‹à¤œ à¤œà¤¾à¤°à¥€",
-    status_step3: "à¤‰à¤¤à¥à¤¤à¤° à¤¤à¥ˆà¤¯à¤¾à¤° à¤•à¤¿à¤¯à¤¾ à¤œà¤¾ à¤°à¤¹à¤¾ à¤¹à¥ˆ",
-    tokens_metric: "4,120 / 64k à¤Ÿà¥‹à¤•à¤¨",
-    quick_actions_label: "à¤¤à¥à¤µà¤°à¤¿à¤¤ à¤•à¤¾à¤°à¥à¤°à¤µà¤¾à¤‡à¤¯à¤¾à¤‚:",
-    qa_analyze: "à¤¦à¤¸à¥à¤¤à¤¾à¤µà¥‡à¤œà¤¼ à¤•à¤¾ à¤µà¤¿à¤¶à¥à¤²à¥‡à¤·à¤£",
-    qa_search: "à¤œà¥à¤žà¤¾à¤¨ à¤–à¥‹à¤œà¥‡à¤‚",
-    qa_code: "à¤•à¥‹à¤¡ à¤²à¤¿à¤–à¥‡à¤‚",
-    input_placeholder: "Vault à¤¸à¥‡ à¤ªà¥‚à¤›à¥‡à¤‚...",
-    attached_file: "Inspection_Report.pdf (à¤¸à¤‚à¤²à¤—à¥à¤¨)",
-    btn_return: "à¤°à¤¿à¤Ÿà¤°à¥à¤¨",
-    footer_note: "à¤¸à¤‚à¤ªà¥à¤°à¤­à¥ à¤‘à¤¨-à¤ªà¥à¤°à¤¿à¤®à¤¾à¤‡à¤¸à¥‡à¤¸ à¤¨à¤¿à¤·à¥à¤ªà¤¾à¤¦à¤¨ Â· à¤¶à¥‚à¤¨à¥à¤¯ à¤¬à¤¾à¤¹à¤°à¥€ à¤Ÿà¥‡à¤²à¥€à¤®à¥‡à¤Ÿà¥à¤°à¥€ Â· à¤¹à¤¾à¤°à¥à¤¡à¤µà¥‡à¤¯à¤° à¤à¤¨à¥à¤•à¥à¤²à¥‡à¤µ à¤¸à¤•à¥à¤°à¤¿à¤¯"
-  },
-  kn: {
-    settings_title: "à²¸à³†à²Ÿà³à²Ÿà²¿à²‚à²—à³â€Œà²—à²³à³",
-    settings_theme: "à²¥à³€à²®à³",
-    settings_lang: "à²­à²¾à²·à³†",
-    theme_light: "à²²à³ˆà²Ÿà³",
-    theme_dark: "à²¡à²¾à²°à³à²•à³",
-    theme_system: "à²¸à²¿à²¸à³à²Ÿà²®à³",
-    nav_chat: "à²šà²¾à²Ÿà³",
-    nav_knowledge: "à²œà³à²žà²¾à²¨",
-    nav_code: "à²•à³‹à²¡à³",
-    nav_models: "à²®à²¾à²¦à²°à²¿à²—à²³à³",
-    nav_logs: "à²²à²¾à²—à³â€Œà²—à²³à³",
-    badge_offline: "à²†à²«à³â€Œà²²à³ˆà²¨à³",
-    session_context: "à²¸à³†à²·à²¨à³ #4821-C Â· à²à²°à³-à²—à³à²¯à²¾à²ªà³à²¡à³ à²Žà²¨à³â€Œà²•à³à²²à³‡à²µà³ Â· Gemma-3-4B-IT (à²²à³‹à²•à²²à³ Llama.cpp)",
-    role_operator: "à²†à²ªà²°à³‡à²Ÿà²°à³",
-    role_vault: "à²µà²¾à²²à³à²Ÿà³",
-    msg_operator: "à²ªà²°à²¿à²¶à³€à²²à²¨à²¾ à²µà²°à²¦à²¿à²¯à²¨à³à²¨à³ à²ªà²°à²¿à²¶à³€à²²à²¿à²¸à²¿ à²®à²¤à³à²¤à³ à²¤à²•à³à²·à²£ à²•à³à²°à²® à²•à³ˆà²—à³Šà²³à³à²³à²¬à³‡à²•à²¾à²¦ à²…à²‚à²¶à²—à²³à²¨à³à²¨à³ à²—à³à²°à³à²¤à²¿à²¸à²¿.",
-    msg_vault_title: "à²®à³‚à²°à³ à²…à²‚à²¶à²—à²³à²¿à²—à³† à²¤à²•à³à²·à²£ à²—à²®à²¨ à²¨à³€à²¡à²¬à³‡à²•à²¾à²—à²¿à²¦à³†.",
-    finding_1_bold: "à²’à²¤à³à²¤à²¡à²¦ à²…à²¸à²¹à²œà²¤à³† à²ªà²¤à³à²¤à³†à²¯à²¾à²—à²¿à²¦à³†",
-    finding_1_body: "à²¸à³ˆà²•à²²à³ à²ªà²°à²¿à²µà²°à³à²¤à²¨à³†à²¯ à²¸à²®à²¯à²¦à²²à³à²²à²¿ à²«à³€à²¡à³â€Œà²µà²¾à²Ÿà²°à³ à²ªà²‚à²ªà³ 2B à²•à³‡à²¸à²¿à²‚à²—à³â€Œà²¨à²²à³à²²à²¿.",
-    citation_1: "Inspection_Report.pdf Â· à²ªà³.14",
-    finding_2_bold: "à²¤à³à²•à³à²•à³ à²ªà²¤à³à²¤à³†à²¯à²¾à²—à²¿à²¦à³†",
-    finding_2_body: "à²¦à³à²µà²¿à²¤à³€à²¯ à²¶à²¾à²– à²µà²¿à²¨à²¿à²®à²¯à²•à²¾à²°à²• à²¬à³ˆà²ªà²¾à²¸à³ à²«à³à²²à³‡à²‚à²œà³ à²µà³†à²²à³à²¡à³ à²¸à³€à²®à³â€Œà²¨à²²à³à²²à²¿.",
-    citation_2: "Inspection_Report.pdf Â· à²ªà³.22",
-    finding_3_bold: "à²ªà²°à²¿à²¶à³€à²²à²¨à²¾ à²…à²µà²§à²¿ à²®à³€à²°à²¿à²¦à³†",
-    finding_3_body: "à²Ÿà²°à³à²¬à³ˆà²¨à³ à²à²¸à³‹à²²à³‡à²·à²¨à³ à²°à²¿à²²à³€à²«à³ à²µà²¾à²²à³à²µà³ VR-408 à²—à²¾à²—à²¿ 42 à²¦à²¿à²¨à²—à²³à³ à²•à²³à³†à²¦à²¿à²µà³†.",
-    citation_3: "Inspection_Report.pdf Â· à²ªà³.31",
-    recommendation_text: "à²¶à²¿à²«à²¾à²°à²¸à³: à²¸à³ˆà²•à²²à³ 08 à²ªà³à²°à²¾à²°à²‚à²­à²•à³à²•à³† à²®à³à²‚à²šà²¿à²¤à²µà²¾à²—à²¿ à²¨à²¿à²°à³à²µà²¹à²£à²¾ à²†à²¦à³‡à²¶à²—à²³à²¨à³à²¨à³ à²¨à³€à²¡à²¿.",
-    status_step1: "à²µà²°à²¦à²¿à²¯à²¨à³à²¨à³ à²“à²¦à²²à²¾à²—à³à²¤à³à²¤à²¿à²¦à³†",
-    status_step2: "à²œà³à²žà²¾à²¨ à²¨à³†à²²à³† à²¹à³à²¡à³à²•à²²à²¾à²—à³à²¤à³à²¤à²¿à²¦à³†",
-    status_step3: "à²ªà³à²°à²¤à²¿à²•à³à²°à²¿à²¯à³† à²¸à²¿à²¦à³à²§à²ªà²¡à²¿à²¸à²²à²¾à²—à³à²¤à³à²¤à²¿à²¦à³†",
-    tokens_metric: "4,120 / 64k à²Ÿà³‹à²•à²¨à³â€Œà²—à²³à³",
-    quick_actions_label: "à²¤à³à²µà²°à²¿à²¤ à²•à³à²°à²¿à²¯à³†à²—à²³à³:",
-    qa_analyze: "à²¦à²¾à²–à²²à³†à²¯à²¨à³à²¨à³ à²µà²¿à²¶à³à²²à³‡à²·à²¿à²¸à²¿",
-    qa_search: "à²œà³à²žà²¾à²¨ à²¹à³à²¡à³à²•à²¿",
-    qa_code: "à²•à³‹à²¡à³ à²¬à²°à³†à²¯à²¿à²°à²¿",
-    input_placeholder: "Vault à²…à²¨à³à²¨à³ à²•à³‡à²³à²¿...",
-    attached_file: "Inspection_Report.pdf (à²²à²—à²¤à³à²¤à²¿à²¸à²²à²¾à²—à²¿à²¦à³†)",
-    btn_return: "à²°à²¿à²Ÿà²°à³à²¨à³",
-    footer_note: "à²¸à²¾à²°à³à²µà²­à³Œà²® à²†à²¨à³-à²ªà³à²°à²¿à²®à³ˆà²¸à³ à²•à²¾à²°à³à²¯à²¾à²šà²°à²£à³† Â· à²¶à³‚à²¨à³à²¯ à²¬à²¾à²¹à³à²¯ à²Ÿà³†à²²à²¿à²®à³†à²Ÿà³à²°à²¿ Â· à²¹à²¾à²°à³à²¡à³â€Œà²µà³‡à²°à³ à²Žà²¨à³â€Œà²•à³à²²à³‡à²µà³ à²¸à²•à³à²°à²¿à²¯"
-  }
 };
 
 export default function ChatScreen({ onNavigate }) {
@@ -149,6 +68,10 @@ export default function ChatScreen({ onNavigate }) {
   const [backendStatus, setBackendStatus] = useState('checking'); // 'healthy' | 'offline' | 'checking'
   const [modelStatus, setModelStatus] = useState('Gemma-3-4B-IT');
   const [copiedId, setCopiedId] = useState(null);
+
+  // Model selection (composer dropdown): 'auto' lets the agent route.
+  const [selectedModel, setSelectedModel] = useState('auto');
+  const [availableModels, setAvailableModels] = useState([]);
 
   // File upload & NotebookLM citation states
   const [attachedFile, setAttachedFile] = useState(null); // { type, file, name, size, previewUrl, base64Data, mediaType, status, documentId, chunks, error }
@@ -164,6 +87,9 @@ export default function ChatScreen({ onNavigate }) {
   const chatBottomRef = useRef(null);
   const inputRef = useRef(null);
   const settingsPopoverRef = useRef(null);
+  // Tracks which chat's messages are currently loaded, so programmatic
+  // navigation to a freshly-created chat does not wipe pending messages.
+  const loadedChatIdRef = useRef(null);
 
   // Apply Theme
   const applyTheme = (theme) => {
@@ -226,18 +152,41 @@ export default function ChatScreen({ onNavigate }) {
     return () => clearInterval(interval);
   }, []);
 
+  // Load available models for the composer dropdown
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const catalog = await listModelCatalog();
+        const models = (catalog?.models || []).filter((m) => m.enabled !== false);
+        if (!cancelled) setAvailableModels(models);
+      } catch (err) {
+        console.warn('[Chat] Failed to load model catalog', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Load chat history on chatId change
   useEffect(() => {
     if (chatId) {
+      // We already hold this chat's messages (e.g. we just created it),
+      // so don't reload from storage and clobber unsaved/pending messages.
+      if (loadedChatIdRef.current === chatId) return;
       try {
         const stored = JSON.parse(localStorage.getItem(`vault_chat_${chatId}`) || '[]');
         setMessages(stored);
+        loadedChatIdRef.current = chatId;
       } catch (e) {
         console.error('Failed to load chat messages', e);
         setMessages([]);
+        loadedChatIdRef.current = chatId;
       }
     } else {
       setMessages([]);
+      loadedChatIdRef.current = null;
     }
   }, [chatId]);
 
@@ -409,6 +358,9 @@ export default function ChatScreen({ onNavigate }) {
     let currentChatId = chatId;
     if (!currentChatId) {
       currentChatId = Date.now().toString();
+      // Claim this chat id before navigating so the load-history effect
+      // (which fires when the URL param changes) doesn't wipe our messages.
+      loadedChatIdRef.current = currentChatId;
       const chats = JSON.parse(localStorage.getItem('vault_chats') || '[]');
       chats.push({ id: currentChatId, title: finalQuery.slice(0, 30) + '...', timestamp: Date.now() });
       localStorage.setItem('vault_chats', JSON.stringify(chats));
@@ -431,9 +383,10 @@ export default function ChatScreen({ onNavigate }) {
     }
 
     try {
-      let options = {};
+      let options = { model: selectedModel };
       if (attachmentToUse?.type === 'image' && attachmentToUse.base64Data) {
         options = {
+          ...options,
           images: [
             {
               base64_data: attachmentToUse.base64Data,
@@ -443,6 +396,7 @@ export default function ChatScreen({ onNavigate }) {
         };
       } else if (attachmentToUse?.type === 'document' && attachmentToUse.documentId) {
         options = {
+          ...options,
           documentId: attachmentToUse.documentId,
           mode: 'knowledge',
         };
@@ -507,17 +461,6 @@ export default function ChatScreen({ onNavigate }) {
          ======================================================== */}
       <main className="flex-1 overflow-y-auto pt-8 pb-6 px-6 flex flex-col items-center select-text">
         <div className="w-full max-w-[780px] flex flex-col space-y-6">
-          {/* Header Banner */}
-          <div className="flex items-center justify-between pb-2 border-b border-[#E2DED5]/60 dark:border-[#34362F]/60">
-            <span className="font-mono text-[11px] text-[#A09E96] dark:text-[#777970] tracking-wider uppercase">
-              {t.session_context}
-            </span>
-            <span className="inline-flex items-center gap-1.5 font-mono text-[10px] px-2 py-0.5 rounded-full bg-[#176B5B]/10 text-[#176B5B] dark:text-[#38A18C] border border-[#176B5B]/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#176B5B] animate-pulse"></span>
-              API: 127.0.0.1:8000
-            </span>
-          </div>
-
           {/* Empty State when no messages */}
           {messages.length === 0 && (
             <div className="flex-1 flex flex-col items-center justify-center py-16 text-center select-text">
@@ -525,7 +468,7 @@ export default function ChatScreen({ onNavigate }) {
                 <span className="material-symbols-outlined text-[28px]">terminal</span>
               </div>
               <h2 className="text-[17px] font-semibold text-[#20211F] dark:text-[#ECEAE3] mb-1.5">
-                Sovereign AI Enclave Ready
+                Sovereign AI Workbench
               </h2>
               <p className="text-[13px] text-[#77766F] dark:text-[#A6A69D] max-w-[460px] leading-relaxed mb-6">
                 Pure on-premise industrial intelligence. Zero external network telemetry. Powered by local Gemma 3 4B on llama-server.
@@ -665,29 +608,15 @@ export default function ChatScreen({ onNavigate }) {
                     <span className="font-mono text-[10px] text-[#A09E96] dark:text-[#777970]">
                       {m.time}
                     </span>
-                    {m.model && (
-                      <span className="font-mono text-[9.5px] text-[#77766F] dark:text-[#A6A69D] bg-[#F0EEE8] dark:bg-[#242620] px-1.5 py-0.2 rounded">
-                        {m.model}
+                    {m.taskType ? (
+                      <span className="font-mono text-[10px] font-bold text-[#000000] dark:text-[#FFFFFF] bg-[#E2DED5] dark:bg-[#34362F] px-2 py-0.5 rounded uppercase">
+                        {m.taskType}
                       </span>
-                    )}
-                    {m.selectionReason && (
-                      <span
-                        className="text-[9.5px] text-[#176B5B] dark:text-[#38A18C] italic"
-                        title={m.selectionReason}
-                      >
-                        · {m.selectionReason}
-                      </span>
-                    )}
-                    {m.mode && (
-                      <span className="font-mono text-[9.5px] text-[#176B5B] dark:text-[#38A18C] bg-[#176B5B]/10 px-1.5 py-0.2 rounded uppercase">
+                    ) : m.mode && m.mode !== 'agent' ? (
+                      <span className="font-mono text-[10px] font-bold text-[#000000] dark:text-[#FFFFFF] bg-[#E2DED5] dark:bg-[#34362F] px-2 py-0.5 rounded uppercase">
                         {m.mode}
                       </span>
-                    )}
-                    {m.taskType && (
-                      <span className="font-mono text-[9.5px] text-[#D96B32] bg-[#D96B32]/10 px-1.5 py-0.2 rounded uppercase">
-                        task:{m.taskType}
-                      </span>
-                    )}
+                    ) : null}
                   </div>
 
                   {/* Vault AI Response Container */}
@@ -775,49 +704,6 @@ export default function ChatScreen({ onNavigate }) {
          ======================================================== */}
       <footer className="w-full flex flex-col items-center pb-6 pt-2 px-6 shrink-0 bg-[#F7F6F2] dark:bg-[#151614] z-30">
         <div className="w-full max-w-[780px] flex flex-col space-y-2.5">
-          {/* Status Subtitle & Tokens Metric */}
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center space-x-2 font-mono text-[11px] text-[#77766F] dark:text-[#A6A69D]">
-              <span className="relative flex h-2 w-2">
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isSending ? 'bg-[#176B5B]' : 'bg-[#176B5B]/50'} opacity-40`}></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#176B5B]"></span>
-              </span>
-              <span>{isSending ? (statusText || 'Working...') : 'Air-gapped enclave ready'}</span>
-              <span className="text-[#A09E96] dark:text-[#777970]">Â·</span>
-              <span>Local llama-server :8080</span>
-            </div>
-            <span className="font-mono text-[10.5px] text-[#A09E96] dark:text-[#777970]">
-              {totalTokens.toLocaleString()} / 64k tokens
-            </span>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="flex items-center space-x-4 px-1 pt-1">
-            <span className="text-[12px] text-[#A09E96] dark:text-[#777970]">
-              {t.quick_actions_label}
-            </span>
-            <button
-              onClick={() => handleSendMessage('Review the inspection report and identify the findings that require immediate action.')}
-              className="text-[12px] text-[#77766F] dark:text-[#A6A69D] hover:text-[#176B5B] dark:hover:text-[#38A18C] transition-colors underline-offset-4 hover:underline"
-            >
-              {t.qa_analyze}
-            </button>
-            <span className="text-[#E2DED5] dark:text-[#34362F] text-[10px]">/</span>
-            <button
-              onClick={() => handleSendMessage('Search local knowledge for emergency isolation valve operating limits and procedures.')}
-              className="text-[12px] text-[#77766F] dark:text-[#A6A69D] hover:text-[#176B5B] dark:hover:text-[#38A18C] transition-colors underline-offset-4 hover:underline"
-            >
-              {t.qa_search}
-            </button>
-            <span className="text-[#E2DED5] dark:text-[#34362F] text-[10px]">/</span>
-            <button
-              onClick={() => handleSendMessage('Write a safe Python telemetry calculation script to evaluate pump vibration thresholds.')}
-              className="text-[12px] text-[#77766F] dark:text-[#A6A69D] hover:text-[#176B5B] dark:hover:text-[#38A18C] transition-colors underline-offset-4 hover:underline"
-            >
-              {t.qa_code}
-            </button>
-          </div>
-
           {/* Input Composer Box */}
           <div className="w-full bg-[#FFFFFF] dark:bg-[#1C1E1B] border border-[#E2DED5] dark:border-[#34362F] rounded-[8px] p-3 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:border-[#176B5B]/50 focus-within:border-[#176B5B] focus-within:ring-1 focus-within:ring-[#176B5B]/30 transition-all">
             {/* Attached File/Image Preview Banner */}
@@ -921,50 +807,51 @@ export default function ChatScreen({ onNavigate }) {
                   id="chat-file-input"
                 />
 
-                {/* Upload File / Image Button */}
+                {/* Attach File / Image Button (clip) */}
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className="w-7 h-7 rounded-[5px] flex items-center justify-center text-[#77766F] dark:text-[#A6A69D] hover:text-[#176B5B] dark:hover:text-[#38A18C] hover:bg-[#F0EEE8] dark:hover:bg-[#242620] transition-colors"
-                  title="Upload image or document (.pdf, .docx, .txt)"
+                  title="Attach image or document (.pdf, .docx, .txt)"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 16 16">
                     <path d="M13.5 7.5l-6 6a3.5 3.5 0 0 1-5-5l6-6a2.5 2.5 0 0 1 3.5 3.5l-6 6a1.5 1.5 0 0 1-2.1-2.1l5.3-5.3"></path>
                   </svg>
                 </button>
 
-                <button
-                  type="button"
-                  className="w-7 h-7 rounded-[5px] flex items-center justify-center text-[#77766F] dark:text-[#A6A69D] hover:text-[#20211F] dark:hover:text-[#ECEAE3] hover:bg-[#F0EEE8] dark:hover:bg-[#242620] transition-colors"
-                  title="Tools & integrations"
-                  onClick={() => onNavigate && onNavigate('models')}
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 16 16">
-                    <path d="M12.5 9.5l-6-6a2.12 2.12 0 0 0-3 3l6 6a2.12 2.12 0 0 0 3-3z"></path>
-                    <line x1="10" x2="12" y1="4" y2="6"></line>
-                    <line x1="2" x2="4" y1="14" y2="12"></line>
-                  </svg>
-                </button>
-
                 <div className="h-3 w-[1px] bg-[#E2DED5] dark:bg-[#34362F] mx-1"></div>
 
-                {attachedFile ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-[#F1F7F5] dark:bg-[#1B2925] border border-[#E4F0EC] dark:border-[#28423C] font-mono text-[11px] text-[#176B5B] dark:text-[#38A18C] tracking-tight rounded-full truncate max-w-[220px]">
+
+
+                {attachedFile && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#F1F7F5] dark:bg-[#1B2925] border border-[#E4F0EC] dark:border-[#28423C] font-mono text-[11px] text-[#176B5B] dark:text-[#38A18C] tracking-tight truncate max-w-[220px]">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#176B5B]"></span>
                     {attachedFile.name}
                   </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] hover:bg-[#F0EEE8] dark:hover:bg-[#242620] font-mono text-[11px] text-[#77766F] dark:text-[#A6A69D] tracking-tight transition-colors rounded-full"
-                  >
-                    <span>+ Attach file/image</span>
-                  </button>
                 )}
               </div>
 
               <div className="flex items-center space-x-3">
+                {/* Model Selection Dropdown */}
+                <div className="relative inline-flex items-center">
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    disabled={isSending}
+                    title="Select model"
+                    className="appearance-none bg-transparent border border-[#E2DED5] dark:border-[#34362F] rounded-[5px] pl-2 pr-6 py-0.5 font-mono text-[11px] text-[#77766F] dark:text-[#A6A69D] hover:text-[#176B5B] dark:hover:text-[#38A18C] hover:border-[#176B5B]/50 focus:outline-none focus:border-[#176B5B] cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="auto">Auto (route)</option>
+                    {availableModels.map((m) => (
+                      <option key={m.key} value={m.key}>
+                        {m.display_name || m.key}
+                      </option>
+                    ))}
+                  </select>
+                  <svg className="w-3 h-3 absolute right-1.5 pointer-events-none text-[#A09E96] dark:text-[#777970]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 16 16">
+                    <polyline points="4 6 8 10 12 6"></polyline>
+                  </svg>
+                </div>
                 <span className="font-mono text-[10.5px] text-[#77766F] dark:text-[#A6A69D] select-none">
                   {/* <span>{t.btn_return}</span> */}
                 </span>

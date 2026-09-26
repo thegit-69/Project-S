@@ -105,8 +105,10 @@ export default function ModelsScreen() {
   const openAdd = () => { setEditingKey(null); setForm({ ...EMPTY_FORM }) }
   const openEdit = (m) => {
     setEditingKey(m.key)
-    setForm({ ...m, model_path: m.model_path || '', mmproj_path: m.mmproj_path || '',
-      task_types: (m.task_types || []).join(', ') })
+    setForm({
+      ...m, model_path: m.model_path || '', mmproj_path: m.mmproj_path || '',
+      task_types: (m.task_types || []).join(', ')
+    })
   }
 
   const submitForm = async (e) => {
@@ -381,7 +383,7 @@ function ModelFormModal({ form, setForm, onSubmit, onClose, busy, isEdit }) {
           <div className="col-span-2">
             <label className={labelCls}>Base URL (loopback only)</label>
             <input className={inputCls} value={form.base_url} required
-              onChange={(e) => set('base_url', e.target.value)} placeholder="http://127.0.0.1:8081" />
+              onChange={(e) => set('base_url', e.target.value)} placeholder="http://127.0.0.1:8082" />
           </div>
           <div>
             <label className={labelCls}>Model ID</label>

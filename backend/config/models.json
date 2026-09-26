@@ -9,8 +9,17 @@
     "mmproj_path": "models/mmproj-gemma-3-4b-it-f16.gguf",
     "timeout": 120,
     "max_context_tokens": 8192,
-    "capabilities": { "text": true, "vision": true, "code": false, "agentic": false },
-    "task_types": ["general", "file_analysis", "vision"],
+    "capabilities": {
+      "text": true,
+      "vision": true,
+      "code": false,
+      "agentic": false
+    },
+    "task_types": [
+      "general",
+      "file_analysis",
+      "vision"
+    ],
     "priority": 10,
     "enabled": true
   },
@@ -18,14 +27,24 @@
     "key": "coder",
     "display_name": "Qwen3 4B",
     "provider_type": "llama_cpp",
-    "base_url": "http://127.0.0.1:8081",
+    "base_url": "http://127.0.0.1:8082",
     "model_id": "qwen3-4b",
     "model_path": "models/qwen3-4b-Q4_K_M.gguf",
     "mmproj_path": null,
     "timeout": 120,
     "max_context_tokens": 8192,
-    "capabilities": { "text": true, "vision": false, "code": true, "agentic": true },
-    "task_types": ["code", "agentic", "multi_step", "calculation"],
+    "capabilities": {
+      "text": true,
+      "vision": false,
+      "code": true,
+      "agentic": true
+    },
+    "task_types": [
+      "code",
+      "agentic",
+      "multi_step",
+      "calculation"
+    ],
     "priority": 20,
     "enabled": true
   }

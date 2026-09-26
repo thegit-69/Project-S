@@ -29,7 +29,7 @@ export default function App() {
 
   return (
     <AnimatePresence mode="wait">
-      <div className="flex w-full h-full">
+      <div className="flex w-full h-screen overflow-hidden">
         <Sidebar active={activeId} onSelect={handleNavigate} />
         <motion.div
           key={location.pathname.startsWith('/chat') ? '/chat' : location.pathname}
@@ -39,7 +39,7 @@ export default function App() {
           transition={{ duration: 0.18, ease: 'easeOut' }}
           className="flex-1 w-full h-full relative"
         >
-        <Routes location={location} key={location.pathname}>
+        <Routes location={location}>
           <Route path="/" element={<Navigate to="/chat" replace />} />
           <Route path="/chat" element={<ChatScreen onNavigate={handleNavigate} />} />
           <Route path="/chat/:chatId" element={<ChatScreen onNavigate={handleNavigate} />} />

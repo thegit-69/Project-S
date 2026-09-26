@@ -63,7 +63,7 @@ const MOCK_CATALOG = {
       key: 'coder',
       display_name: 'Qwen3 4B',
       provider_type: 'llama_cpp',
-      base_url: 'http://127.0.0.1:8081',
+      base_url: 'http://127.0.0.1:8082',
       model_id: 'qwen3-4b',
       model_path: 'models/qwen3-4b-Q4_K_M.gguf',
       mmproj_path: null,
@@ -168,7 +168,7 @@ export async function reloadModels() {
  * Run a task through the Sovereign Agent pipeline (routing, planning, tools, verification, LLM).
  * Endpoint: POST /agent/run
  */
-export async function runAgentTask(task, model = 'general') {
+export async function runAgentTask(task, model = null) {
   try {
     const res = await fetch(`${API_BASE_URL}/agent/run`, {
       method: 'POST',
@@ -176,6 +176,7 @@ export async function runAgentTask(task, model = 'general') {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
+      // A null model lets the orchestrator auto-route; a key pins that model.
       body: JSON.stringify({ task, model }),
     });
 
@@ -186,21 +187,8 @@ export async function runAgentTask(task, model = 'general') {
 
     return await res.json();
   } catch (err) {
-    console.warn('[API] runAgentTask failed, using MOCK fallback for demonstration', err);
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          result: `I've routed your request "${task}" through the agent pipeline and verified the execution. The task has been completed successfully using local deterministic tools.`,
-          selected_model: "gemma-3-4b-it (Agent Mock)",
-          task_type: "general",
-          plan: "1. Analyze input 2. Fetch context 3. Synthesize response",
-          tool_calls: [{ tool: "Search", success: true, output: "Mocked output" }],
-          verification: "Verified",
-          trace: [{ event_type: 'TASK_COMPLETED', metadata: { tokens_used: 145, prompt_tokens: 100, completion_tokens: 45 } }],
-          run_id: "mock-run"
-        });
-      }, 1500);
-    });
+    console.warn('[API] runAgentTask failed:', err);
+    throw err;
   }
 }
 
@@ -240,28 +228,8 @@ export async function runModelInference({
 
     return await res.json();
   } catch (err) {
-    console.warn('[API] runModelInference failed, using MOCK fallback for demonstration', err);
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        if (images && images.length > 0) {
-          resolve({
-            text: `Based on the uploaded image, I have analyzed the visual telemetry data as requested: "${prompt}".\n\nThe image shows mechanical schematics and thermal readings. The heat signatures in the upper right quadrant exceed normal operational thresholds by approximately 15%, indicating potential wear on the primary bearing assembly.`,
-            model_name: "gemma-3-4b-it (Vision Mock)",
-            duration_ms: 2100,
-            tokens_used: 115,
-            metadata: { timings: { predicted_per_second: 28.5 }, prompt_tokens: 350, completion_tokens: 115 }
-          });
-        } else {
-          resolve({
-            text: `(Mocked direct inference) I received your prompt: "${prompt}". \n\nAs an air-gapped agent, I've processed this locally. All systems are operating normally.`,
-            model_name: "gemma-3-4b-it (Local Mock)",
-            duration_ms: 1200,
-            tokens_used: 45,
-            metadata: { timings: { predicted_per_second: 35.0 }, prompt_tokens: 25, completion_tokens: 45 }
-          });
-        }
-      }, 2000);
-    });
+    console.warn('[API] runModelInference failed:', err);
+    throw err;
   }
 }
 
@@ -316,17 +284,8 @@ export async function uploadAndIngestDocument(file) {
       ingestionTimeMs: ingestRes.ingestion_time_ms,
     };
   } catch (err) {
-    console.warn('[API] Upload/Ingest failed, using MOCK fallback for demonstration', err);
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          document_id: `mock-doc-${Date.now()}`,
-          chunks: 42,
-          ingestionTimeMs: 1250,
-          page_count: 34,
-        });
-      }, 1500);
-    });
+    console.warn('[API] Upload/Ingest failed:', err);
+    throw err;
   }
 }
 
@@ -399,7 +358,7 @@ export async function deleteKnowledgeDocument(documentId) {
 export async function queryKnowledge(query, topK = 5, documentId = null) {
   const body = { query, top_k: topK };
   if (documentId) body.document_id = documentId;
-  
+
   try {
     const res = await fetch(`${API_BASE_URL}/knowledge/query`, {
       method: 'POST',
@@ -417,24 +376,8 @@ export async function queryKnowledge(query, topK = 5, documentId = null) {
 
     return await res.json();
   } catch (err) {
-    console.warn('[API] queryKnowledge failed, using MOCK fallback for demonstration', err);
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          answer: `Based on the uploaded document, I have analyzed your query: "${query}". \n\nThe document contains several key findings that align with this request. According to the inspection report, there are significant anomalies detected in the primary cooling loop and the secondary heat exchanger. I recommend immediate maintenance action before cycle 08 commencement to prevent metallurgical failure.`,
-          citations: [
-            { document: "Uploaded_Document.pdf", page: 14, content: "Pressure anomaly detected on Feedwater Pump 2B casing during cycle transition. Ultrasonic readings exceed baseline thresholds by 18.4%." },
-            { document: "Uploaded_Document.pdf", page: 22, content: "Corrosion identified in Secondary Heat Exchanger bypass flange weld seam. Wall thickness compromised past allowable metallurgical safety margin." },
-            { document: "Uploaded_Document.pdf", page: 31, content: "Inspection interval exceeded for Turbine Isolation Relief Valve VR-408 by 42 days." }
-          ],
-          evidence_quality: "High",
-          model_used: "gemma-3-4b-it (Local)",
-          total_time_ms: 1850,
-          tokens_used: 245,
-          timings: { predicted_per_second: 32.4 }
-        });
-      }, 2000);
-    });
+    console.warn('[API] queryKnowledge failed:', err);
+    throw err;
   }
 }
 
@@ -445,12 +388,17 @@ export async function queryKnowledge(query, topK = 5, documentId = null) {
 export async function sendChatMessage(prompt, options = {}) {
   const startTime = performance.now();
 
+  // A specific model key pins that model; 'auto' (or unset) lets the agent route.
+  const modelName =
+    options.model && options.model !== 'auto' ? options.model : undefined;
+
   // 1. Multimodal Vision Route (Image attached)
   if (options.images && options.images.length > 0) {
     const infRes = await runModelInference({
       prompt,
       images: options.images,
       ...options,
+      modelName,
     });
     const duration = infRes.duration_ms || Math.round(performance.now() - startTime);
     const timings = infRes.metadata?.timings || {};
@@ -493,7 +441,7 @@ export async function sendChatMessage(prompt, options = {}) {
 
   // 3. Direct Model Inference Route
   if (options.mode === 'inference') {
-    const infRes = await runModelInference({ prompt, ...options });
+    const infRes = await runModelInference({ prompt, ...options, modelName });
     const duration = infRes.duration_ms || Math.round(performance.now() - startTime);
     const timings = infRes.metadata?.timings || {};
     const tokensUsed = infRes.tokens_used || Math.max(1, Math.floor(infRes.text.length / 4));
@@ -514,7 +462,7 @@ export async function sendChatMessage(prompt, options = {}) {
 
   // 4. Default: Sovereign Agent Orchestrator with fallback
   try {
-    const agentRes = await runAgentTask(prompt);
+    const agentRes = await runAgentTask(prompt, modelName ?? null);
     const duration = Math.round(performance.now() - startTime);
 
     if (agentRes.execution_status === 'error' && (!agentRes.result || agentRes.result.startsWith('Tool execution failed'))) {
