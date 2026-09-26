@@ -37,6 +37,6 @@ class RetrievalService:
         # 4. Map back to Payloads
         payloads = []
         for scored_point in search_result.points:
-            payloads.append(QdrantPayload(**scored_point.payload))
+            payloads.append(QdrantPayload(**(scored_point.payload or {})))
             
         return payloads

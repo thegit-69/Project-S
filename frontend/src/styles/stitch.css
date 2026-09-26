@@ -481,3 +481,79 @@ html.dark .vault-prose code:not(pre code) {
   color: #E06C75;
 }
 
+
+/* ========================================================
+   LLAMA.CPP TERMINAL DARK MODE OVERRIDE
+   ======================================================== */
+html.dark {
+  /* Backgrounds */
+  --bg: #000000 !important;
+  --bg-workbench: #000000 !important;
+  --color-page-bg: #000000 !important;
+  --color-background: #000000 !important;
+
+  /* Surfaces */
+  --surface: #0A0A0A !important;
+  --bg-surface: #0A0A0A !important;
+  --color-surface: #0A0A0A !important;
+  --color-card-bg: #0A0A0A !important;
+  
+  --surface-sec: #141414 !important;
+  --bg-secondary: #141414 !important;
+  --color-surface-alt: #141414 !important;
+  --color-chip-bg: #141414 !important;
+
+  /* Borders */
+  --border: #2A2A2A !important;
+  --border-color: #2A2A2A !important;
+  --color-border-subtle: #2A2A2A !important;
+  --outline-color: #404040 !important;
+
+  /* Text */
+  --text: #F0F0F0 !important;
+  --text-primary: #F0F0F0 !important;
+  --color-text-main: #F0F0F0 !important;
+
+  --text-sec: #A0A0A0 !important;
+  --text-secondary: #A0A0A0 !important;
+  --color-text-muted: #A0A0A0 !important;
+  
+  --text-dim: #606060 !important;
+  --text-tertiary: #606060 !important;
+  --color-text-subtle: #606060 !important;
+  --color-text-placeholder: #555555 !important;
+
+  /* Accents */
+  --accent: #4AF626 !important;
+  --primary-color: #4AF626 !important;
+  --accent-tint: #002200 !important;
+  --bg-primary-container: #002200 !important;
+  --color-primary-tint: #002200 !important;
+}
+
+html.dark body {
+  background-color: #000000 !important;
+  color: #F0F0F0 !important;
+}
+
+html.dark {
+  --on-primary-container: #4AF626 !important;
+  --on-primary: #000000 !important;
+}
+html.dark .text-on-primary-container {
+  color: #4AF626 !important;
+}
+html.dark .bg-primary {
+  background-color: #4AF626 !important;
+  color: #000000 !important;
+}
+html.dark .text-primary {
+  color: #4AF626 !important;
+}
+html.dark .bg-primary-container {
+  background-color: #003300 !important;
+  color: #4AF626 !important;
+}
+html.dark .border-primary {
+  border-color: #4AF626 !important;
+}

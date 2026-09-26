@@ -140,7 +140,7 @@ export default function MarkdownMessage({ content }) {
   }, [content]);
 
   return (
-    <div className="vault-markdown-message text-[15px] leading-[1.7] text-[#20211F] dark:text-[#ECEAE3]">
+    <div className="vault-markdown-message text-[15px] leading-[1.7] text-[#20211F] dark:text-[#E0E0E0]">
       {blocks.map((block, idx) => {
         if (block.type === 'code') {
           return <CodeBlock key={idx} code={block.code} language={block.lang} />;

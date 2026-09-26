@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 /**
  * Parses a model name into a base name and tag pills matching llama.cpp's UI.
@@ -33,19 +33,30 @@ export default function LlamaMessageFooter({
 }) {
   const [copied, setCopied] = useState(false);
   const [actionNotice, setActionNotice] = useState('');
+  const [now, setNow] = useState(Date.now());
 
   const { base, pills } = parseModelPills(message.model);
 
-  // Compute or format duration in seconds
-  const durationSec = message.durationMs
-    ? `${Math.max(1, Math.round(message.durationMs / 1000))}s`
-    : '17s';
+  useEffect(() => {
+    let interval;
+    if (message.startTime && !message.durationMs) {
+      interval = setInterval(() => setNow(Date.now()), 250);
+    }
+    return () => clearInterval(interval);
+  }, [message.startTime, message.durationMs]);
 
-  // Compute tokens count
-  const tokensCount = message.tokens || (message.text ? Math.max(1, Math.floor(message.text.length / 4)) : 860);
+  // Compute duration live
+  const activeDurationMs = message.durationMs || (message.startTime ? now - message.startTime : 0);
+  const durationSec = activeDurationMs > 0
+    ? `${(activeDurationMs / 1000).toFixed(1)}s`
+    : '...';
 
-  // Compute tokens per second
-  const speed = message.tokensPerSecond || (message.durationMs > 0 ? (tokensCount / (message.durationMs / 1000)).toFixed(2) : '48.73');
+  // Compute tokens count live
+  const tokensCount = message.tokensUsed || message.tokens || (message.text ? Math.max(1, Math.floor(message.text.length / 4)) : 860);
+
+  // Compute tokens per second live
+  const speedRaw = message.tokensPerSecond || (activeDurationMs > 0 ? (tokensCount / (activeDurationMs / 1000)) : null);
+  const speed = speedRaw ? Number(speedRaw).toFixed(2) : '...';
 
   const handleCopyClick = () => {
     if (onCopy) {
@@ -86,11 +97,11 @@ export default function LlamaMessageFooter({
       {/* ========================================================
           ROW 1: Model Tag & Inline Metrics
          ======================================================== */}
-      <div className="flex flex-wrap items-center gap-3 text-[12px] font-mono text-[#77766F] dark:text-[#A6A69D]">
+      <div className="flex flex-wrap items-center gap-3 text-[12px] font-mono text-[#77766F] dark:text-[#888888]">
         {/* Model Pill Container */}
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] bg-[#EAE7DF] dark:bg-[#161715] border border-[#DDD9CE] dark:border-[#2C2E29] text-[#20211F] dark:text-[#E2E0D8] shadow-sm">
           {/* 3D Cube Icon */}
-          <svg className="w-3.5 h-3.5 text-[#176B5B] dark:text-[#38A18C] shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 16 16">
+          <svg className="w-3.5 h-3.5 text-[#176B5B] dark:text-[#4AF626] shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 16 16">
             <path d="M8 1.5L2.2 4.8v6.4L8 14.5l5.8-3.3V4.8L8 1.5z"></path>
             <path d="M8 1.5v6.5m5.8-3.2L8 8m0 0L2.2 4.8"></path>
           </svg>
@@ -105,7 +116,7 @@ export default function LlamaMessageFooter({
             {pills.map((pill, idx) => (
               <span
                 key={idx}
-                className="px-1.5 py-[1px] text-[10px] font-bold rounded-[4px] bg-[#DDD9CE] dark:bg-[#252722] text-[#20211F] dark:text-[#CCCCCC] border border-[#CFCABF] dark:border-[#383A33]"
+                className="px-1.5 py-[1px] text-[10px] font-bold rounded-[4px] bg-[#DDD9CE] dark:bg-[#1A1A1A] text-[#20211F] dark:text-[#CCCCCC] border border-[#CFCABF] dark:border-[#333333]"
               >
                 {pill}
               </span>
@@ -132,19 +143,19 @@ export default function LlamaMessageFooter({
 
         {/* Generation Speed (t/s) */}
         <div className="inline-flex items-center gap-1.5 hover:text-[#20211F] dark:hover:text-[#ECEAE3] transition-colors" title="Generation throughput">
-          <svg className="w-3.5 h-3.5 text-[#176B5B] dark:text-[#38A18C] shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 16 16">
+          <svg className="w-3.5 h-3.5 text-[#176B5B] dark:text-[#4AF626] shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 16 16">
             <path d="M2.5 11a6 6 0 1 1 11 0"></path>
             <circle cx="8" cy="8" r="1.5"></circle>
             <path d="M8 8l2.5-3"></path>
           </svg>
-          <span className="text-[12px] font-semibold text-[#176B5B] dark:text-[#38A18C]">
+          <span className="text-[12px] font-semibold text-[#176B5B] dark:text-[#4AF626]">
             {speed} t/s
           </span>
         </div>
 
         {/* Action Notice feedback if any */}
         {actionNotice && (
-          <span className="text-[10.5px] font-mono text-[#176B5B] dark:text-[#38A18C] animate-fade-in ml-auto">
+          <span className="text-[10.5px] font-mono text-[#176B5B] dark:text-[#4AF626] animate-fade-in ml-auto">
             ✓ {actionNotice}
           </span>
         )}
@@ -153,15 +164,15 @@ export default function LlamaMessageFooter({
       {/* ========================================================
           ROW 2: Action Buttons (Copy, Edit, Regenerate, Branch, Delete)
          ======================================================== */}
-      <div className="flex items-center gap-1 text-[#77766F] dark:text-[#8E9088] pt-0.5">
+      <div className="flex items-center gap-1 text-[#77766F] dark:text-[#888888] pt-0.5">
         {/* 1. Copy Button */}
         <button
           onClick={handleCopyClick}
-          className="p-1.5 rounded-md hover:bg-[#EAE7DF] dark:hover:bg-[#252722] hover:text-[#20211F] dark:hover:text-[#FFFFFF] transition-colors"
+          className="p-1.5 rounded-md hover:bg-[#EAE7DF] dark:hover:bg-[#1A1A1A] hover:text-[#20211F] dark:hover:text-[#FFFFFF] transition-colors"
           title="Copy response to clipboard"
         >
           {copied ? (
-            <svg className="w-4 h-4 text-[#176B5B] dark:text-[#38A18C]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 16 16">
+            <svg className="w-4 h-4 text-[#176B5B] dark:text-[#4AF626]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 16 16">
               <polyline points="3.5 8.5 6.5 11.5 12.5 4.5"></polyline>
             </svg>
           ) : (
@@ -175,7 +186,7 @@ export default function LlamaMessageFooter({
         {/* 2. Edit Button */}
         <button
           onClick={handleEditClick}
-          className="p-1.5 rounded-md hover:bg-[#EAE7DF] dark:hover:bg-[#252722] hover:text-[#20211F] dark:hover:text-[#FFFFFF] transition-colors"
+          className="p-1.5 rounded-md hover:bg-[#EAE7DF] dark:hover:bg-[#1A1A1A] hover:text-[#20211F] dark:hover:text-[#FFFFFF] transition-colors"
           title="Edit prompt and re-submit"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 16 16">
@@ -187,7 +198,7 @@ export default function LlamaMessageFooter({
         {/* 3. Regenerate Button */}
         <button
           onClick={handleRegenerateClick}
-          className="p-1.5 rounded-md hover:bg-[#EAE7DF] dark:hover:bg-[#252722] hover:text-[#20211F] dark:hover:text-[#FFFFFF] transition-colors"
+          className="p-1.5 rounded-md hover:bg-[#EAE7DF] dark:hover:bg-[#1A1A1A] hover:text-[#20211F] dark:hover:text-[#FFFFFF] transition-colors"
           title="Regenerate response"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 16 16">
@@ -199,7 +210,7 @@ export default function LlamaMessageFooter({
         {/* 4. Branch / Fork Button */}
         <button
           onClick={handleBranchClick}
-          className="p-1.5 rounded-md hover:bg-[#EAE7DF] dark:hover:bg-[#252722] hover:text-[#20211F] dark:hover:text-[#FFFFFF] transition-colors"
+          className="p-1.5 rounded-md hover:bg-[#EAE7DF] dark:hover:bg-[#1A1A1A] hover:text-[#20211F] dark:hover:text-[#FFFFFF] transition-colors"
           title="Branch / Fork conversation from this turn"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 16 16">
@@ -213,7 +224,7 @@ export default function LlamaMessageFooter({
         {/* 5. Delete Button */}
         <button
           onClick={handleDeleteClick}
-          className="p-1.5 rounded-md hover:bg-[#EAE7DF] dark:hover:bg-[#252722] hover:text-[#D96B32] transition-colors"
+          className="p-1.5 rounded-md hover:bg-[#EAE7DF] dark:hover:bg-[#1A1A1A] hover:text-[#D96B32] transition-colors"
           title="Delete this message"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 16 16">

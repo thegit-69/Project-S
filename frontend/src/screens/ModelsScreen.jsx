@@ -145,7 +145,7 @@ export default function ModelsScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F6F2] dark:bg-[#151614] text-[#20211F] dark:text-[#ECEAE3]">
+    <div className="min-h-screen bg-[#F7F6F2] dark:bg-[#000000] text-[#20211F] dark:text-[#E0E0E0]">
       <main className="max-w-6xl mx-auto px-6 py-8">
         {/* Header */}
         <div className="flex items-end justify-between mb-6">
@@ -192,7 +192,7 @@ export default function ModelsScreen() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
             {ROUTING_RULES.map(({ Icon, title, rule, to }) => (
-              <div key={title} className="rounded-md border border-[#E2DED5] dark:border-[#30332B] bg-[#F7F6F2] dark:bg-[#151614] p-3">
+              <div key={title} className="rounded-md border border-[#E2DED5] dark:border-[#30332B] bg-[#F7F6F2] dark:bg-[#000000] p-3">
                 <div className="flex items-center gap-2 mb-1">
                   <Icon size={15} style={{ color: '#176B5B' }} />
                   <span className="text-sm font-medium">{title}</span>
@@ -209,7 +209,7 @@ export default function ModelsScreen() {
               onChange={(e) => setTestTask(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && runRoutingTest()}
               placeholder="Try a task, e.g. “refactor this python function”…"
-              className="flex-1 px-3 py-2 rounded-md border border-[#E2DED5] dark:border-[#30332B] bg-[#F7F6F2] dark:bg-[#151614] text-sm outline-none focus:border-[#176B5B]"
+              className="flex-1 px-3 py-2 rounded-md border border-[#E2DED5] dark:border-[#30332B] bg-[#F7F6F2] dark:bg-[#000000] text-sm outline-none focus:border-[#176B5B]"
             />
             <button
               onClick={runRoutingTest}
@@ -345,7 +345,7 @@ function ModelCard({ m, busy, onToggle, onEdit, onDelete }) {
 }
 
 const inputCls =
-  'w-full px-3 py-2 rounded-md border border-[#E2DED5] dark:border-[#30332B] bg-[#F7F6F2] dark:bg-[#151614] text-sm outline-none focus:border-[#176B5B]'
+  'w-full px-3 py-2 rounded-md border border-[#E2DED5] dark:border-[#30332B] bg-[#F7F6F2] dark:bg-[#000000] text-sm outline-none focus:border-[#176B5B]'
 const labelCls = 'text-xs font-medium text-[#6B6E68] dark:text-[#9AA09A] mb-1 block'
 
 function ModelFormModal({ form, setForm, onSubmit, onClose, busy, isEdit }) {

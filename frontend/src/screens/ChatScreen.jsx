@@ -5,8 +5,10 @@ import {
   sendChatMessage,
   getSystemHealth,
   getModelsHealth,
-  uploadAndIngestDocument,
+  uploadDocumentFile,
+  pollDocumentStatus,
   listModelCatalog,
+  streamChat,
 } from '../services/api.js'
 import MarkdownMessage from '../components/MarkdownMessage.jsx'
 import LlamaMessageFooter from '../components/LlamaMessageFooter.jsx'
@@ -198,7 +200,24 @@ export default function ChatScreen({ onNavigate }) {
   // Save chat history on messages change
   useEffect(() => {
     if (chatId && messages.length > 0) {
-      localStorage.setItem(`vault_chat_${chatId}`, JSON.stringify(messages));
+      try {
+        const messagesToSave = messages.map(m => {
+          if (m.attachment?.type === 'image') {
+            return {
+              ...m,
+              attachment: {
+                ...m.attachment,
+                base64Data: undefined,
+                previewUrl: undefined
+              }
+            };
+          }
+          return m;
+        });
+        localStorage.setItem(`vault_chat_${chatId}`, JSON.stringify(messagesToSave));
+      } catch (err) {
+        console.warn('Failed to save chat to localStorage (quota exceeded?)', err);
+      }
     }
   }, [messages, chatId]);
 
@@ -256,18 +275,52 @@ export default function ChatScreen({ onNavigate }) {
       });
 
       try {
-        const res = await uploadAndIngestDocument(file);
+        const res = await uploadDocumentFile(file);
+        const docId = res.document_id;
+        
         setAttachedFile((prev) =>
           prev && prev.name === file.name
             ? {
               ...prev,
-              status: 'ready',
-              documentId: res.document_id,
-              chunks: res.chunks,
-              pageCount: res.page_count,
+              status: 'uploading',
+              documentId: docId,
             }
             : prev
         );
+
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusRes = await pollDocumentStatus(docId);
+            const status = (statusRes.status || '').toLowerCase();
+            if (status === 'ready') {
+              clearInterval(pollInterval);
+              setAttachedFile((prev) =>
+                prev && prev.name === file.name
+                  ? {
+                    ...prev,
+                    status: 'ready',
+                    chunks: statusRes.chunk_count,
+                    pageCount: statusRes.page_count,
+                  }
+                  : prev
+              );
+            } else if (status === 'failed') {
+              clearInterval(pollInterval);
+              setAttachedFile((prev) =>
+                prev && prev.name === file.name
+                  ? {
+                    ...prev,
+                    status: 'error',
+                    error: 'Ingestion failed',
+                  }
+                  : prev
+              );
+            }
+          } catch (e) {
+            clearInterval(pollInterval);
+          }
+        }, 2000);
+
       } catch (err) {
         console.error('[Upload] Document upload error:', err);
         setAttachedFile((prev) =>
@@ -352,6 +405,9 @@ export default function ChatScreen({ onNavigate }) {
         : 'Summarize and extract key findings from this document.');
 
     setInputValue('');
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+    }
     const userMsg = {
       id: `user-${Date.now()}`,
       role: 'operator',
@@ -389,6 +445,8 @@ export default function ChatScreen({ onNavigate }) {
 
     try {
       let options = { model: selectedModel };
+      let finalPrompt = finalQuery;
+      
       if (attachmentToUse?.type === 'image' && attachmentToUse.base64Data) {
         options = {
           ...options,
@@ -403,49 +461,67 @@ export default function ChatScreen({ onNavigate }) {
         options = {
           ...options,
           documentId: attachmentToUse.documentId,
-          mode: 'knowledge',
+          useRag: true,
         };
+      } else {
+        options.useRag = false; // standard chat if no file attached
       }
 
-      const response = await sendChatMessage(finalQuery, options);
       setStatusText('Synthesizing verified response...');
+      
+      const assistantId = `vault-${Date.now()}`;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: assistantId,
+          role: 'vault',
+          time: getTimestamp(),
+          text: '',
+          model: selectedModel === 'auto' ? 'gemma-3-4b-it' : selectedModel,
+          citations: [],
+          mode: 'chat',
+          startTime: Date.now(),
+        }
+      ]);
+      
+      await streamChat(
+        finalPrompt,
+        (chunk) => {
+          setMessages((prev) => prev.map((m) => {
+            if (m.id === assistantId) {
+              return {
+                ...m,
+                text: m.text + (chunk.content || ''),
+                citations: chunk.citations || m.citations,
+                model: chunk.model_used || m.model,
+                tokensUsed: chunk.tokens_used || m.tokensUsed,
+                durationMs: chunk.total_time_ms || m.durationMs,
+                tokensPerSecond: chunk.tokens_per_sec || m.tokensPerSecond,
+              };
+            }
+            return m;
+          }));
+        },
+        () => {
+          setIsSending(false);
+          setStatusText('');
+        },
+        (err) => {
+          throw err;
+        },
+        options
+      );
 
-      const tokensUsed =
-        response.tokensUsed || Math.max(1, Math.floor(response.text.length / 4));
-      setTotalTokens((prev) => prev + tokensUsed);
-
-      const vaultMsg = {
-        id: `vault-${Date.now()}`,
-        role: 'vault',
-        time: getTimestamp(),
-        text: response.text,
-        model: response.model || 'gemma-3-4b-it',
-        taskType: response.taskType,
-        selectionReason: response.selectionReason,
-        plan: response.plan,
-        toolCalls: response.toolCalls,
-        verification: response.verification,
-        citations: response.citations,
-        tokens: tokensUsed,
-        tokensPerSecond: response.tokensPerSecond,
-        promptTokens: response.promptTokens,
-        completionTokens: response.completionTokens,
-        durationMs: response.durationMs,
-        mode: response.mode,
-      };
-
-      setMessages((prev) => [...prev, vaultMsg]);
     } catch (err) {
       console.error('[Chat] Execution error:', err);
       const errorMsg = {
         id: `vault-err-${Date.now()}`,
         role: 'vault',
         time: getTimestamp(),
-        text: `âš ï¸ Execution notice: Could not complete request through local enclave. (${err.message || 'Server unavailable'}). Please ensure backend and llama-server are running.`,
+        text: `⚠️ Execution notice: Could not complete request through local enclave. (${err.message || 'Server unavailable'}). Please ensure backend and llama-server are running.`,
         isError: true,
       };
       setMessages((prev) => [...prev, errorMsg]);
-    } finally {
       setIsSending(false);
       setStatusText('');
     }
@@ -459,7 +535,7 @@ export default function ChatScreen({ onNavigate }) {
   };
 
   return (
-    <div className="w-full h-screen flex flex-col relative bg-[#F7F6F2] dark:bg-[#151614] text-[#20211F] dark:text-[#ECEAE3] font-sans">
+    <div className="w-full h-screen flex flex-col relative bg-[#F7F6F2] dark:bg-[#000000] text-[#20211F] dark:text-[#E0E0E0] font-sans">
 
       {/* ========================================================
           MAIN CHAT CONTAINER
@@ -469,48 +545,48 @@ export default function ChatScreen({ onNavigate }) {
           {/* Empty State when no messages */}
           {messages.length === 0 && (
             <div className="flex-1 flex flex-col items-center justify-center py-16 text-center select-text">
-              <div className="w-12 h-12 rounded-xl bg-[#176B5B]/10 dark:bg-[#176B5B]/20 text-[#176B5B] dark:text-[#38A18C] flex items-center justify-center mb-4 shadow-sm">
+              <div className="w-12 h-12 rounded-xl bg-[#176B5B]/10 dark:bg-[#176B5B]/20 text-[#176B5B] dark:text-[#4AF626] flex items-center justify-center mb-4 shadow-sm">
                 <span className="material-symbols-outlined text-[28px]">terminal</span>
               </div>
-              <h2 className="text-[17px] font-semibold text-[#20211F] dark:text-[#ECEAE3] mb-1.5">
+              <h2 className="text-[17px] font-semibold text-[#20211F] dark:text-[#E0E0E0] mb-1.5">
                 Sovereign AI Workbench
               </h2>
-              <p className="text-[13px] text-[#77766F] dark:text-[#A6A69D] max-w-[460px] leading-relaxed mb-6">
+              <p className="text-[13px] text-[#77766F] dark:text-[#888888] max-w-[460px] leading-relaxed mb-6">
                 Pure on-premise industrial intelligence. Zero external network telemetry. Powered by local Gemma 3 4B on llama-server.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 w-full max-w-[640px]">
                 <button
                   onClick={() => handleSendMessage('Review the inspection report and identify critical findings.')}
-                  className="p-3 text-left rounded-lg bg-[#FFFFFF] dark:bg-[#1C1E1B] border border-[#E2DED5] dark:border-[#34362F] hover:border-[#176B5B] transition-colors group shadow-sm"
+                  className="p-3 text-left rounded-lg bg-[#FFFFFF] dark:bg-[#0D0D0D] border border-[#E2DED5] dark:border-[#333333] hover:border-[#176B5B] transition-colors group shadow-sm"
                 >
-                  <span className="block text-[10.5px] font-mono text-[#176B5B] dark:text-[#38A18C] uppercase mb-1 font-semibold">
+                  <span className="block text-[10.5px] font-mono text-[#176B5B] dark:text-[#4AF626] uppercase mb-1 font-semibold">
                     Analysis
                   </span>
-                  <span className="text-[12.5px] text-[#20211F] dark:text-[#ECEAE3] font-medium leading-snug block">
+                  <span className="text-[12.5px] text-[#20211F] dark:text-[#E0E0E0] font-medium leading-snug block">
                     Analyze document report & findings
                   </span>
                 </button>
 
                 <button
                   onClick={() => handleSendMessage('Search local knowledge for emergency isolation valve operating limits.')}
-                  className="p-3 text-left rounded-lg bg-[#FFFFFF] dark:bg-[#1C1E1B] border border-[#E2DED5] dark:border-[#34362F] hover:border-[#176B5B] transition-colors group shadow-sm"
+                  className="p-3 text-left rounded-lg bg-[#FFFFFF] dark:bg-[#0D0D0D] border border-[#E2DED5] dark:border-[#333333] hover:border-[#176B5B] transition-colors group shadow-sm"
                 >
-                  <span className="block text-[10.5px] font-mono text-[#176B5B] dark:text-[#38A18C] uppercase mb-1 font-semibold">
+                  <span className="block text-[10.5px] font-mono text-[#176B5B] dark:text-[#4AF626] uppercase mb-1 font-semibold">
                     Knowledge Base
                   </span>
-                  <span className="text-[12.5px] text-[#20211F] dark:text-[#ECEAE3] font-medium leading-snug block">
+                  <span className="text-[12.5px] text-[#20211F] dark:text-[#E0E0E0] font-medium leading-snug block">
                     Query private indexed manuals
                   </span>
                 </button>
 
                 <button
                   onClick={() => handleSendMessage('write a python script for adding 2 numbers')}
-                  className="p-3 text-left rounded-lg bg-[#FFFFFF] dark:bg-[#1C1E1B] border border-[#E2DED5] dark:border-[#34362F] hover:border-[#176B5B] transition-colors group shadow-sm"
+                  className="p-3 text-left rounded-lg bg-[#FFFFFF] dark:bg-[#0D0D0D] border border-[#E2DED5] dark:border-[#333333] hover:border-[#176B5B] transition-colors group shadow-sm"
                 >
-                  <span className="block text-[10.5px] font-mono text-[#176B5B] dark:text-[#38A18C] uppercase mb-1 font-semibold">
+                  <span className="block text-[10.5px] font-mono text-[#176B5B] dark:text-[#4AF626] uppercase mb-1 font-semibold">
                     Code Studio
                   </span>
-                  <span className="text-[12.5px] text-[#20211F] dark:text-[#ECEAE3] font-medium leading-snug block">
+                  <span className="text-[12.5px] text-[#20211F] dark:text-[#E0E0E0] font-medium leading-snug block">
                     Write verified Python script
                   </span>
                 </button>
@@ -529,8 +605,8 @@ export default function ChatScreen({ onNavigate }) {
                     animate={{ opacity: 1, y: 0 }}
                     className="w-full flex items-center justify-center my-3 select-none"
                   >
-                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#EAE7DF] dark:bg-[#1E201C] border border-[#DDD9CE] dark:border-[#30332B] text-[11px] font-mono text-[#77766F] dark:text-[#A6A69D] shadow-sm">
-                      <span className="text-[#176B5B] dark:text-[#38A18C] font-bold">â‘‚</span>
+                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#EAE7DF] dark:bg-[#1E201C] border border-[#DDD9CE] dark:border-[#30332B] text-[11px] font-mono text-[#77766F] dark:text-[#888888] shadow-sm">
+                      <span className="text-[#176B5B] dark:text-[#4AF626] font-bold">â‘‚</span>
                       <span>{m.text}</span>
                       <span className="text-[9.5px] text-[#A09E96]">Â· {m.time}</span>
                     </div>
@@ -548,10 +624,10 @@ export default function ChatScreen({ onNavigate }) {
                   className="flex flex-col items-end self-end max-w-[85%] ml-auto space-y-1.5 select-text"
                 >
                   <div className="flex items-center space-x-2 text-right">
-                    <span className="font-mono text-[10px] text-[#A09E96] dark:text-[#777970]">
+                    <span className="font-mono text-[10px] text-[#A09E96] dark:text-[#888888]">
                       {m.time}
                     </span>
-                    <span className="font-mono text-[11px] font-semibold text-[#77766F] dark:text-[#A6A69D] tracking-wider uppercase">
+                    <span className="font-mono text-[11px] font-semibold text-[#77766F] dark:text-[#888888] tracking-wider uppercase">
                       {t.role_operator}
                     </span>
                   </div>
@@ -561,30 +637,34 @@ export default function ChatScreen({ onNavigate }) {
                     <div className="mb-1 w-full flex justify-end">
                       {m.attachment.type === 'image' ? (
                         <div className="rounded-xl overflow-hidden border border-[#DDD9CE] dark:border-[#343830] max-w-[280px] bg-black/5 dark:bg-white/5 shadow-sm">
-                          {m.attachment.previewUrl && (
+                          {m.attachment.previewUrl ? (
                             <img
                               src={m.attachment.previewUrl}
                               alt={m.attachment.name || 'Uploaded image'}
                               className="w-full h-auto object-cover max-h-[220px] rounded-t-xl"
                             />
+                          ) : m.attachment.type === 'image' && (
+                            <div className="w-full h-24 bg-[#efede7] dark:bg-[#0D0D0D] rounded-t-xl flex items-center justify-center text-sm text-[#8c8a81] border-b border-[#e2dfd7] dark:border-[#333333]">
+                              [Image Attachment: {m.attachment.name || 'Original'}]
+                            </div>
                           )}
-                          <div className="p-2 bg-[#E8E6DE] dark:bg-[#252823] text-[11px] font-mono text-[#77766F] dark:text-[#A6A69D] flex items-center justify-between">
+                          <div className="p-2 bg-[#E8E6DE] dark:bg-[#1A1A1A] text-[11px] font-mono text-[#77766F] dark:text-[#888888] flex items-center justify-between">
                             <span className="truncate max-w-[190px]">{m.attachment.name}</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#176B5B]/10 text-[#176B5B] dark:text-[#38A18C] font-semibold">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#176B5B]/10 text-[#176B5B] dark:text-[#4AF626] font-semibold">
                               Vision Input
                             </span>
                           </div>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#E0DDD3] dark:bg-[#252823] border border-[#DDD9CE] dark:border-[#343830] text-[12px] font-mono text-[#20211F] dark:text-[#ECEAE3] shadow-sm">
-                          <div className="w-6 h-6 rounded bg-[#176B5B]/15 text-[#176B5B] dark:text-[#38A18C] flex items-center justify-center shrink-0">
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#E0DDD3] dark:bg-[#1A1A1A] border border-[#DDD9CE] dark:border-[#343830] text-[12px] font-mono text-[#20211F] dark:text-[#E0E0E0] shadow-sm">
+                          <div className="w-6 h-6 rounded bg-[#176B5B]/15 text-[#176B5B] dark:text-[#4AF626] flex items-center justify-center shrink-0">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 16 16">
                               <path d="M3 2h8l3 3v9H3z"></path>
                               <path d="M11 2v3h3"></path>
                             </svg>
                           </div>
                           <span className="font-medium truncate max-w-[220px]">{m.attachment.name}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#176B5B]/10 text-[#176B5B] dark:text-[#38A18C] font-semibold ml-1 shrink-0">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#176B5B]/10 text-[#176B5B] dark:text-[#4AF626] font-semibold ml-1 shrink-0">
                             Indexed Document
                           </span>
                         </div>
@@ -592,7 +672,7 @@ export default function ChatScreen({ onNavigate }) {
                     </div>
                   )}
 
-                  <div className="bg-[#E8E6DE] dark:bg-[#252823] text-[#20211F] dark:text-[#ECEAE3] px-4 py-2.5 rounded-2xl rounded-tr-sm border border-[#DDD9CE] dark:border-[#343830] shadow-sm text-[15px] leading-[1.6] text-left select-text">
+                  <div className="bg-[#E8E6DE] dark:bg-[#1A1A1A] text-[#20211F] dark:text-[#E0E0E0] px-4 py-2.5 rounded-2xl rounded-tr-sm border border-[#DDD9CE] dark:border-[#343830] shadow-sm text-[15px] leading-[1.6] text-left select-text">
                     {m.text}
                   </div>
                 </motion.div>
@@ -607,25 +687,25 @@ export default function ChatScreen({ onNavigate }) {
                 >
                   {/* Role Header */}
                   <div className="flex items-baseline space-x-2.5">
-                    <span className="font-mono text-[11px] font-semibold tracking-wider uppercase text-[#176B5B] dark:text-[#38A18C]">
+                    <span className="font-mono text-[11px] font-semibold tracking-wider uppercase text-[#176B5B] dark:text-[#4AF626]">
                       {t.role_vault}
                     </span>
-                    <span className="font-mono text-[10px] text-[#A09E96] dark:text-[#777970]">
+                    <span className="font-mono text-[10px] text-[#A09E96] dark:text-[#888888]">
                       {m.time}
                     </span>
                     {m.taskType ? (
-                      <span className="font-mono text-[10px] font-bold text-[#000000] dark:text-[#FFFFFF] bg-[#E2DED5] dark:bg-[#34362F] px-2 py-0.5 rounded uppercase">
+                      <span className="font-mono text-[10px] font-bold text-[#000000] dark:text-[#E0E0E0] bg-[#E2DED5] dark:bg-[#34362F] px-2 py-0.5 rounded uppercase">
                         {m.taskType}
                       </span>
                     ) : m.mode && m.mode !== 'agent' ? (
-                      <span className="font-mono text-[10px] font-bold text-[#000000] dark:text-[#FFFFFF] bg-[#E2DED5] dark:bg-[#34362F] px-2 py-0.5 rounded uppercase">
+                      <span className="font-mono text-[10px] font-bold text-[#000000] dark:text-[#E0E0E0] bg-[#E2DED5] dark:bg-[#34362F] px-2 py-0.5 rounded uppercase">
                         {m.mode}
                       </span>
                     ) : null}
                   </div>
 
                   {/* Vault AI Response Container */}
-                  <div className="w-full space-y-3.5 text-[15px] leading-[1.7] text-[#20211F] dark:text-[#ECEAE3] select-text">
+                  <div className="w-full space-y-3.5 text-[15px] leading-[1.7] text-[#20211F] dark:text-[#E0E0E0] select-text">
                     {/* Main LLM generated body formatted with Markdown and Code highlighting */}
                     {m.text && (
                       <MarkdownMessage content={m.text} />
@@ -633,12 +713,12 @@ export default function ChatScreen({ onNavigate }) {
 
                     {/* Tool executions & verification trace */}
                     {m.toolCalls && m.toolCalls.length > 0 && (
-                      <div className="mt-3 p-2.5 rounded bg-[#F0EEE8] dark:bg-[#1E201C] border border-[#E2DED5] dark:border-[#34362F] space-y-1.5 text-[12px] font-mono select-text">
-                        <span className="text-[#77766F] dark:text-[#A6A69D] font-semibold uppercase text-[10.5px]">
+                      <div className="mt-3 p-2.5 rounded bg-[#F0EEE8] dark:bg-[#1E201C] border border-[#E2DED5] dark:border-[#333333] space-y-1.5 text-[12px] font-mono select-text">
+                        <span className="text-[#77766F] dark:text-[#888888] font-semibold uppercase text-[10.5px]">
                           Agentic Execution & Verifier Trace:
                         </span>
                         {m.toolCalls.map((tc, j) => (
-                          <div key={j} className="flex items-center gap-2 text-[#20211F] dark:text-[#ECEAE3]">
+                          <div key={j} className="flex items-center gap-2 text-[#20211F] dark:text-[#E0E0E0]">
                             <span className="w-1.5 h-1.5 rounded-full bg-[#176B5B]"></span>
                             <span>Tool: <b>{tc.tool}</b></span>
                             <span className="text-[#77766F]">â†’</span>
@@ -667,7 +747,7 @@ export default function ChatScreen({ onNavigate }) {
 
                     {/* llama.cpp-style Message Footer (Pill, Metrics, Action Buttons) */}
                     {!m.isError && (
-                      <div className="border-t border-[#E2DED5]/60 dark:border-[#34362F]/60 pt-1">
+                      <div className="border-t border-[#E2DED5]/60 dark:border-[#333333]/60 pt-1">
                         <LlamaMessageFooter
                           message={m}
                           onCopy={handleCopy}
@@ -696,7 +776,7 @@ export default function ChatScreen({ onNavigate }) {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#176B5B] opacity-40"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#176B5B]"></span>
               </span>
-              <span className="font-mono text-[12px] text-[#176B5B] dark:text-[#38A18C]">
+              <span className="font-mono text-[12px] text-[#176B5B] dark:text-[#4AF626]">
                 {statusText || 'Executing on-premise Gemma 3 inference...'}
               </span>
             </motion.div>
@@ -709,13 +789,13 @@ export default function ChatScreen({ onNavigate }) {
       {/* ========================================================
           FOOTER COMPOSER & ACTIONS
          ======================================================== */}
-      <footer className="w-full flex flex-col items-center pb-6 pt-2 px-6 shrink-0 bg-[#F7F6F2] dark:bg-[#151614] z-30">
+      <footer className="w-full flex flex-col items-center pb-6 pt-2 px-6 shrink-0 bg-[#F7F6F2] dark:bg-[#000000] z-30">
         <div className="w-full max-w-[780px] flex flex-col space-y-2.5">
           {/* Input Composer Box */}
-          <div className="w-full bg-[#FFFFFF] dark:bg-[#1C1E1B] border border-[#E2DED5] dark:border-[#34362F] rounded-[8px] p-3 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:border-[#176B5B]/50 focus-within:border-[#176B5B] focus-within:ring-1 focus-within:ring-[#176B5B]/30 transition-all">
+          <div className="w-full bg-[#FFFFFF] dark:bg-[#0D0D0D] border border-[#E2DED5] dark:border-[#333333] rounded-[8px] p-3 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:border-[#176B5B]/50 focus-within:border-[#176B5B] focus-within:ring-1 focus-within:ring-[#176B5B]/30 transition-all">
             {/* Attached File/Image Preview Banner */}
             {attachedFile && (
-              <div className="mb-2 p-2 rounded-lg bg-[#F1F7F5] dark:bg-[#1B2925] border border-[#D5EAE2] dark:border-[#28423C] flex items-center justify-between animate-fade-in text-[12px] font-mono">
+              <div className="mb-2 p-2 rounded-lg bg-[#F1F7F5] dark:bg-[#1A1A1A] border border-[#D5EAE2] dark:border-[#333333] flex items-center justify-between animate-fade-in text-[12px] font-mono">
                 <div className="flex items-center space-x-2.5 min-w-0">
                   {attachedFile.type === 'image' ? (
                     <div className="w-9 h-9 rounded-md overflow-hidden border border-[#176B5B]/40 shrink-0 bg-black/10">
@@ -726,7 +806,7 @@ export default function ChatScreen({ onNavigate }) {
                       />
                     </div>
                   ) : (
-                    <div className="w-9 h-9 rounded-md bg-[#176B5B]/15 dark:bg-[#176B5B]/30 text-[#176B5B] dark:text-[#38A18C] flex items-center justify-center shrink-0 border border-[#176B5B]/30">
+                    <div className="w-9 h-9 rounded-md bg-[#176B5B]/15 dark:bg-[#176B5B]/30 text-[#176B5B] dark:text-[#4AF626] flex items-center justify-center shrink-0 border border-[#176B5B]/30">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 16 16">
                         <path d="M3 2h8l3 3v9H3z"></path>
                         <path d="M11 2v3h3"></path>
@@ -736,17 +816,17 @@ export default function ChatScreen({ onNavigate }) {
 
                   <div className="flex flex-col min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-[#20211F] dark:text-[#ECEAE3] truncate max-w-[280px]">
+                      <span className="font-semibold text-[#20211F] dark:text-[#E0E0E0] truncate max-w-[280px]">
                         {attachedFile.name}
                       </span>
-                      <span className="text-[10px] text-[#77766F] dark:text-[#A6A69D]">
+                      <span className="text-[10px] text-[#77766F] dark:text-[#888888]">
                         ({Math.round(attachedFile.size / 1024)} KB)
                       </span>
                     </div>
 
                     <div className="flex items-center gap-2 text-[10.5px]">
                       {attachedFile.type === 'image' ? (
-                        <span className="text-[#176B5B] dark:text-[#38A18C] font-semibold flex items-center gap-1">
+                        <span className="text-[#176B5B] dark:text-[#4AF626] font-semibold flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-[#176B5B] animate-pulse"></span>
                           Multimodal Vision Active (Local Gemma 3)
                         </span>
@@ -756,7 +836,7 @@ export default function ChatScreen({ onNavigate }) {
                           Ingesting into Enclave Knowledge Base...
                         </span>
                       ) : attachedFile.status === 'ready' ? (
-                        <span className="text-[#176B5B] dark:text-[#38A18C] font-semibold flex items-center gap-1">
+                        <span className="text-[#176B5B] dark:text-[#4AF626] font-semibold flex items-center gap-1">
                           âœ“ Indexed in Enclave ({attachedFile.chunks || 'ready'} chunks) Â· RAG Grounded
                         </span>
                       ) : (
@@ -771,7 +851,7 @@ export default function ChatScreen({ onNavigate }) {
                 <button
                   type="button"
                   onClick={handleRemoveAttachment}
-                  className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-[#77766F] dark:text-[#A6A69D] hover:text-[#20211F] dark:hover:text-[#ECEAE3] transition-colors ml-2"
+                  className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-[#77766F] dark:text-[#888888] hover:text-[#20211F] dark:hover:text-[#ECEAE3] transition-colors ml-2"
                   title="Remove attachment"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 16 16">
@@ -783,14 +863,25 @@ export default function ChatScreen({ onNavigate }) {
             )}
 
             <div className="min-h-[52px] px-2 pt-1 flex items-start">
-              <input
+              <textarea
                 ref={inputRef}
                 value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
+                rows={1}
+                onChange={(e) => {
+                  setInputValue(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
                 disabled={isSending}
-                className="w-full bg-transparent text-[15px] text-[#20211F] dark:text-[#ECEAE3] placeholder-[#A09E96] dark:placeholder-[#777970] outline-none font-normal"
+                className="w-full bg-transparent text-[15px] text-[#20211F] dark:text-[#E0E0E0] placeholder-[#A09E96] dark:placeholder-[#777970] outline-none font-normal resize-none overflow-hidden block py-1"
                 id="composer-input"
+                style={{ minHeight: '30px' }}
                 placeholder={
                   isSending
                     ? 'Generating local inference...'
@@ -798,11 +889,10 @@ export default function ChatScreen({ onNavigate }) {
                       ? `Ask a question about ${attachedFile.name}...`
                       : t.input_placeholder
                 }
-                type="text"
               />
             </div>
 
-            <div className="flex items-center justify-between pt-2 px-1 border-t border-[#E2DED5] dark:border-[#34362F] mt-1">
+            <div className="flex items-center justify-between pt-2 px-1 border-t border-[#E2DED5] dark:border-[#333333] mt-1">
               <div className="flex items-center space-x-1.5">
                 {/* Hidden File Input */}
                 <input
@@ -818,7 +908,7 @@ export default function ChatScreen({ onNavigate }) {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-7 h-7 rounded-[5px] flex items-center justify-center text-[#77766F] dark:text-[#A6A69D] hover:text-[#176B5B] dark:hover:text-[#38A18C] hover:bg-[#F0EEE8] dark:hover:bg-[#242620] transition-colors"
+                  className="w-7 h-7 rounded-[5px] flex items-center justify-center text-[#77766F] dark:text-[#888888] hover:text-[#176B5B] dark:hover:text-[#4AF626] hover:bg-[#F0EEE8] dark:hover:bg-[#1A1A1A] transition-colors"
                   title="Attach image or document (.pdf, .docx, .txt)"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 16 16">
@@ -831,7 +921,7 @@ export default function ChatScreen({ onNavigate }) {
 
 
                 {attachedFile && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#F1F7F5] dark:bg-[#1B2925] border border-[#E4F0EC] dark:border-[#28423C] font-mono text-[11px] text-[#176B5B] dark:text-[#38A18C] tracking-tight truncate max-w-[220px]">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#F1F7F5] dark:bg-[#1A1A1A] border border-[#E4F0EC] dark:border-[#333333] font-mono text-[11px] text-[#176B5B] dark:text-[#4AF626] tracking-tight truncate max-w-[220px]">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#176B5B]"></span>
                     {attachedFile.name}
                   </span>
@@ -846,7 +936,7 @@ export default function ChatScreen({ onNavigate }) {
                     onClick={() => !isSending && setIsModelDropdownOpen(!isModelDropdownOpen)}
                     disabled={isSending}
                     title="Select model"
-                    className="flex items-center justify-between min-w-[110px] max-w-[150px] bg-transparent border border-[#E2DED5] dark:border-[#34362F] rounded-[5px] pl-2 pr-1.5 py-0.5 font-mono text-[11px] text-[#77766F] dark:text-[#A6A69D] hover:text-[#176B5B] dark:hover:text-[#38A18C] hover:border-[#176B5B]/50 focus:outline-none focus:border-[#176B5B] cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center justify-between min-w-[110px] max-w-[150px] bg-transparent border border-[#E2DED5] dark:border-[#333333] rounded-[5px] pl-2 pr-1.5 py-0.5 font-mono text-[11px] text-[#77766F] dark:text-[#888888] hover:text-[#176B5B] dark:hover:text-[#4AF626] hover:border-[#176B5B]/50 focus:outline-none focus:border-[#176B5B] cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span className="truncate mr-2 text-left">
                       {selectedModel === 'auto' ? 'Auto (route)' : (availableModels.find(m => m.key === selectedModel)?.display_name || selectedModel)}
@@ -857,11 +947,11 @@ export default function ChatScreen({ onNavigate }) {
                   </button>
 
                   {isModelDropdownOpen && (
-                    <div className="absolute bottom-[calc(100%+4px)] left-0 w-[160px] bg-[#FFFFFF] dark:bg-[#1C1E1B] border border-[#E2DED5] dark:border-[#34362F] rounded-md shadow-lg py-1 z-50">
+                    <div className="absolute bottom-[calc(100%+4px)] left-0 w-[160px] bg-[#FFFFFF] dark:bg-[#0D0D0D] border border-[#E2DED5] dark:border-[#333333] rounded-md shadow-lg py-1 z-50">
                       <button
                         type="button"
                         onClick={() => { setSelectedModel('auto'); setIsModelDropdownOpen(false); }}
-                        className={`w-full text-left px-3 py-1.5 font-mono text-[11px] hover:bg-[#F0EEE8] dark:hover:bg-[#242620] ${selectedModel === 'auto' ? 'text-[#176B5B] dark:text-[#38A18C] bg-[#F8E9DF]/50 dark:bg-[#3A2921]/50' : 'text-[#20211F] dark:text-[#ECEAE3]'}`}
+                        className={`w-full text-left px-3 py-1.5 font-mono text-[11px] hover:bg-[#F0EEE8] dark:hover:bg-[#1A1A1A] ${selectedModel === 'auto' ? 'text-[#176B5B] dark:text-[#4AF626] bg-[#F8E9DF]/50 dark:bg-[#003300]/50' : 'text-[#20211F] dark:text-[#E0E0E0]'}`}
                       >
                         Auto (route)
                       </button>
@@ -870,7 +960,7 @@ export default function ChatScreen({ onNavigate }) {
                           key={m.key}
                           type="button"
                           onClick={() => { setSelectedModel(m.key); setIsModelDropdownOpen(false); }}
-                          className={`w-full text-left px-3 py-1.5 font-mono text-[11px] hover:bg-[#F0EEE8] dark:hover:bg-[#242620] ${selectedModel === m.key ? 'text-[#176B5B] dark:text-[#38A18C] bg-[#F8E9DF]/50 dark:bg-[#3A2921]/50' : 'text-[#20211F] dark:text-[#ECEAE3]'}`}
+                          className={`w-full text-left px-3 py-1.5 font-mono text-[11px] hover:bg-[#F0EEE8] dark:hover:bg-[#1A1A1A] ${selectedModel === m.key ? 'text-[#176B5B] dark:text-[#4AF626] bg-[#F8E9DF]/50 dark:bg-[#003300]/50' : 'text-[#20211F] dark:text-[#E0E0E0]'}`}
                         >
                           {m.display_name || m.key}
                         </button>
@@ -878,7 +968,7 @@ export default function ChatScreen({ onNavigate }) {
                     </div>
                   )}
                 </div>
-                <span className="font-mono text-[10.5px] text-[#77766F] dark:text-[#A6A69D] select-none">
+                <span className="font-mono text-[10.5px] text-[#77766F] dark:text-[#888888] select-none">
                   {/* <span>{t.btn_return}</span> */}
                 </span>
                 <button
@@ -905,8 +995,8 @@ export default function ChatScreen({ onNavigate }) {
           </div>
 
           {/* Footer Note */}
-          <div className="flex items-center justify-center pt-0.5 border-t border-[#E2DED5] dark:border-[#34362F] mt-1">
-            <p className="font-mono text-[10.5px] text-[#A09E96] dark:text-[#777970] tracking-tight pt-1">
+          <div className="flex items-center justify-center pt-0.5 border-t border-[#E2DED5] dark:border-[#333333] mt-1">
+            <p className="font-mono text-[10.5px] text-[#A09E96] dark:text-[#888888] tracking-tight pt-1">
               {t.footer_note}
             </p>
           </div>

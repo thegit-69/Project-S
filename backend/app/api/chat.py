@@ -14,7 +14,7 @@ class RagOptions(BaseModel):
     top_k: int = 5
 
 class ChatRequest(BaseModel):
-    messages: List[Dict[str, str]]
+    messages: List[Dict[str, Any]]
     stream: bool = True
     rag_options: Optional[RagOptions] = None
 

@@ -234,8 +234,9 @@ export async function runModelInference({
 }
 
 /**
- * Upload a document (PDF, DOCX, TXT) to Document Intelligence.
+ * Upload a document (PDF, DOCX, TXT, CSV) to Document Intelligence.
  * Endpoint: POST /files/upload
+ * NOTE: The backend now automatically schedules ingestion.
  */
 export async function uploadDocumentFile(file) {
   const formData = new FormData();
@@ -255,79 +256,33 @@ export async function uploadDocumentFile(file) {
 }
 
 /**
- * Ingest an uploaded document into the local Knowledge vector base.
- * Endpoint: POST /knowledge/ingest/{document_id}
+ * Poll document ingestion status.
+ * Endpoint: GET /files/{document_id}
  */
-export async function ingestDocument(documentId) {
-  const res = await fetch(`${API_BASE_URL}/knowledge/ingest/${documentId}`, {
-    method: 'POST',
+export async function pollDocumentStatus(documentId) {
+  const res = await fetch(`${API_BASE_URL}/files/${documentId}`, {
+    headers: { 'Accept': 'application/json' }
   });
-
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.detail || `Ingestion failed (${res.status})`);
+    throw new Error(`Failed to fetch document status (${res.status})`);
   }
-
   return await res.json();
 }
 
 /**
- * Combined upload and ingest workflow for seamless document chat.
- */
-export async function uploadAndIngestDocument(file) {
-  try {
-    const uploadRes = await uploadDocumentFile(file);
-    const ingestRes = await ingestDocument(uploadRes.document_id);
-    return {
-      ...uploadRes,
-      chunks: ingestRes.chunk_count,
-      ingestionTimeMs: ingestRes.ingestion_time_ms,
-    };
-  } catch (err) {
-    console.warn('[API] Upload/Ingest failed:', err);
-    throw err;
-  }
-}
-
-/**
- * List all documents currently indexed in the local knowledge base.
- * Endpoint: GET /knowledge/documents
+ * List all documents currently indexed in the backend.
+ * Endpoint: GET /files/
  */
 export async function listKnowledgeDocuments() {
   try {
-    const res = await fetch(`${API_BASE_URL}/knowledge/documents`, {
+    const res = await fetch(`${API_BASE_URL}/files/`, {
       headers: { 'Accept': 'application/json' },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     return await res.json();
   } catch (err) {
-    console.warn('[API] listKnowledgeDocuments failed, using MOCK fallback for demonstration', err);
-    return [
-      {
-        document_id: 'mock-doc-1',
-        filename: 'Maintenance_SOP_Rev4.pdf',
-        file_type: 'pdf',
-        chunk_count: 128,
-        ingestion_status: 'indexed',
-        ingested_at: new Date(Date.now() - 86400000).toISOString(),
-      },
-      {
-        document_id: 'mock-doc-2',
-        filename: 'Inspection_Report_Q3.pdf',
-        file_type: 'pdf',
-        chunk_count: 64,
-        ingestion_status: 'indexed',
-        ingested_at: new Date(Date.now() - 3600000).toISOString(),
-      },
-      {
-        document_id: 'mock-doc-3',
-        filename: 'Safety_Manual_Vol2.docx',
-        file_type: 'docx',
-        chunk_count: 210,
-        ingestion_status: 'indexed',
-        ingested_at: new Date(Date.now() - 7200000).toISOString(),
-      },
-    ];
+    console.warn('[API] listKnowledgeDocuments failed', err);
+    return [];
   }
 }
 
@@ -356,29 +311,28 @@ export async function deleteKnowledgeDocument(documentId) {
  * Endpoint: POST /knowledge/query
  */
 export async function queryKnowledge(query, topK = 5, documentId = null) {
-  const body = { query, top_k: topK };
-  if (documentId) body.document_id = documentId;
+  return new Promise((resolve, reject) => {
+    let fullText = '';
+    let finalCitations = [];
 
-  try {
-    const res = await fetch(`${API_BASE_URL}/knowledge/query`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
+    streamChat(
+      query,
+      (chunk) => {
+        if (chunk.content) fullText += chunk.content;
+        if (chunk.citations) finalCitations = chunk.citations;
       },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}));
-      throw new Error(errorData.detail || `Knowledge query failed (${res.status})`);
-    }
-
-    return await res.json();
-  } catch (err) {
-    console.warn('[API] queryKnowledge failed:', err);
-    throw err;
-  }
+      () => {
+        resolve({
+          answer: fullText,
+          citations: finalCitations,
+          total_time_ms: null,
+          tokens_used: null,
+        });
+      },
+      (err) => reject(err),
+      { useRag: true, documentId } // documentId not strictly used by our chat endpoint yet, but passed
+    );
+  });
 }
 
 /**
@@ -531,5 +485,118 @@ export async function sendChatMessage(prompt, options = {}) {
       timings,
       mode: 'inference_fallback',
     };
+  }
+}
+
+export async function streamChat(query, onChunk, onComplete, onError, options = {}) {
+  try {
+    let messageContent = query;
+    if (options.images && options.images.length > 0) {
+      messageContent = [
+        { type: 'text', text: query },
+        { type: 'image_url', image_url: { url: `data:${options.images[0].media_type};base64,${options.images[0].base64_data}` } }
+      ];
+    }
+
+    const res = await fetch(`${API_BASE_URL}/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+      },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: messageContent }],
+        stream: true,
+        rag_options: {
+          enabled: options.useRag === true || !!options.documentId,
+          document_id: options.documentId || null,
+        }
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Chat stream failed (${res.status})`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6).trim();
+          if (data === '[DONE]') {
+            if (onComplete) onComplete();
+            return;
+          }
+          
+          try {
+            const parsed = JSON.parse(data);
+            
+            if (parsed.is_custom_metadata) {
+              if (onChunk) onChunk({ citations: parsed.sources });
+            } else if (parsed.choices && parsed.choices.length > 0) {
+              const delta = parsed.choices[0].delta;
+              if (delta && delta.content) {
+                if (onChunk) onChunk({ content: delta.content });
+              }
+            } else if (parsed.error) {
+              throw new Error(parsed.error);
+            }
+
+            if (parsed.timings) {
+              if (onChunk) onChunk({
+                tokens_used: parsed.timings.predicted_n,
+                total_time_ms: parsed.timings.predicted_ms,
+                tokens_per_sec: parsed.timings.predicted_per_second
+              });
+            }
+          } catch (e) {
+            // Ignoring JSON parse errors for incomplete chunks
+          }
+        }
+      }
+    }
+    
+    if (buffer.startsWith('data: ')) {
+      const data = buffer.slice(6).trim();
+      if (data === '[DONE]') {
+        if (onComplete) onComplete();
+      } else {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.is_custom_metadata) {
+             if (onChunk) onChunk({ citations: parsed.sources });
+          } else if (parsed.choices && parsed.choices.length > 0) {
+             const delta = parsed.choices[0].delta;
+             if (delta && delta.content) {
+               if (onChunk) onChunk({ content: delta.content });
+             }
+          }
+          if (parsed.timings) {
+             if (onChunk) onChunk({
+               tokens_used: parsed.timings.predicted_n,
+               total_time_ms: parsed.timings.predicted_ms,
+               tokens_per_sec: parsed.timings.predicted_per_second
+             });
+          }
+          if (onComplete) onComplete();
+        } catch (e) {}
+      }
+    } else {
+        if (onComplete) onComplete();
+    }
+  } catch (err) {
+    if (onError) onError(err);
+    else console.error('[API] Stream chat failed:', err);
   }
 }
