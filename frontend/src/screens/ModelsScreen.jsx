@@ -1,973 +1,461 @@
-﻿import { useEffect, useRef } from "react";
+import { useState, useEffect, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Plus, RefreshCw, Loader2, X, Trash2, Pencil, Cpu, Eye, Code2,
+  Bot, Type, ShieldCheck, Zap, Route, CircleDot, Server,
+} from 'lucide-react'
+import {
+  listModelCatalog,
+  createModelDefinition,
+  updateModelDefinition,
+  deleteModelDefinition,
+  reloadModels,
+  runAgentTask,
+} from '../services/api.js'
 
-export default function ModelsScreen({ onNavigate }) {
-  const rootRef = useRef(null);
-  const navRef = useRef(onNavigate);
-  navRef.current = onNavigate;
+// Capability chips rendered on each model card.
+const CAPS = [
+  { key: 'vision', label: 'Vision', Icon: Eye },
+  { key: 'code', label: 'Code', Icon: Code2 },
+  { key: 'agentic', label: 'Agentic', Icon: Bot },
+  { key: 'text', label: 'Text', Icon: Type },
+]
 
-  useEffect(() => {
-    const root = rootRef.current;
+// The deterministic routing rules, shown verbatim in the Auto-routing panel.
+const ROUTING_RULES = [
+  { Icon: Eye, title: 'Image input', rule: 'requires a vision-capable model', to: 'Gemma 3 4B' },
+  { Icon: Code2, title: 'Code / agentic task', rule: 'code, agentic, multi-step or calculation', to: 'Qwen3 4B' },
+  { Icon: Route, title: 'Everything else', rule: 'general question / synthesis', to: 'general model' },
+]
 
-    // Translations Dictionary
-    const translations = {
-      en: {
-        nav_chat: "Chat",
-        nav_knowledge: "Knowledge",
-        nav_code: "Code",
-        nav_models: "Models",
-        nav_logs: "Logs",
-        badge_offline: "OFFLINE",
-        settings_title: "PREFERENCES",
-        settings_theme: "Theme",
-        settings_lang: "Language",
-        page_title: "Models",
-        page_desc: "Local intelligence available to Vault.",
-        btn_add_model: "+ ADD MODEL",
-        autoroute_label: "AUTO ROUTING",
-        autoroute_desc:
-          "Vault automatically selects the appropriate local model for each query and pipeline task.",
-        state_active: "ACTIVE",
-        col_model: "MODEL",
-        col_capability: "CAPABILITY",
-        col_weights: "WEIGHTS",
-        col_state: "STATE",
-        state_ready: "READY",
-        state_standby: "STANDBY",
-        drawer_pane_title: "INSPECTION PANE",
-        drawer_assigned_capabilities: "Assigned Capabilities",
-        drawer_specifications: "Specifications",
-        spec_context_window: "Context Window",
-        drawer_runtime_status: "Runtime Status",
-        runtime_state: "State",
-        runtime_ready_warm: "READY / WARM",
-        cap_1: "Code generation & refactoring",
-        cap_2: "Static structural analysis",
-        cap_3: "Autonomous error localization",
-        cap_4: "Deterministic test synthesis",
-        action_set_default: "SET AS DEFAULT CODER",
-        action_verify_sha: "VERIFY SHA",
-        action_unload: "UNLOAD",
-      },
-      hi: {
-        nav_chat: "à¤šà¥ˆà¤Ÿ",
-        nav_knowledge: "à¤œà¥à¤žà¤¾à¤¨à¤•à¥‹à¤·",
-        nav_code: "à¤•à¥‹à¤¡",
-        nav_models: "à¤®à¥‰à¤¡à¤²",
-        nav_logs: "à¤²à¥‰à¤—à¥à¤¸",
-        badge_offline: "à¤‘à¤«à¤¼à¤²à¤¾à¤‡à¤¨",
-        settings_title: "à¤ªà¥à¤°à¤¾à¤¥à¤®à¤¿à¤•à¤¤à¤¾à¤à¤‚",
-        settings_theme: "à¤¥à¥€à¤®",
-        settings_lang: "à¤­à¤¾à¤·à¤¾",
-        page_title: "à¤®à¥‰à¤¡à¤²",
-        page_desc: "Vault à¤•à¥‡ à¤²à¤¿à¤ à¤‰à¤ªà¤²à¤¬à¥à¤§ à¤¸à¥à¤¥à¤¾à¤¨à¥€à¤¯ à¤¬à¥à¤¦à¥à¤§à¤¿à¤®à¤¤à¥à¤¤à¤¾à¥¤",
-        btn_add_model: "+ à¤®à¥‰à¤¡à¤² à¤œà¥‹à¤¡à¤¼à¥‡à¤‚",
-        autoroute_label: "à¤¸à¥à¤µà¤¤à¤ƒ à¤°à¥‚à¤Ÿà¤¿à¤‚à¤—",
-        autoroute_desc:
-          "Vault à¤ªà¥à¤°à¤¤à¥à¤¯à¥‡à¤• à¤•à¥à¤µà¥‡à¤°à¥€ à¤”à¤° à¤ªà¤¾à¤‡à¤ªà¤²à¤¾à¤‡à¤¨ à¤•à¤¾à¤°à¥à¤¯ à¤•à¥‡ à¤²à¤¿à¤ à¤¸à¥à¤µà¤šà¤¾à¤²à¤¿à¤¤ à¤°à¥‚à¤ª à¤¸à¥‡ à¤‰à¤ªà¤¯à¥à¤•à¥à¤¤ à¤¸à¥à¤¥à¤¾à¤¨à¥€à¤¯ à¤®à¥‰à¤¡à¤² à¤•à¤¾ à¤šà¤¯à¤¨ à¤•à¤°à¤¤à¤¾ à¤¹à¥ˆà¥¤",
-        state_active: "à¤¸à¤•à¥à¤°à¤¿à¤¯",
-        col_model: "à¤®à¥‰à¤¡à¤²",
-        col_capability: "à¤•à¥à¤·à¤®à¤¤à¤¾",
-        col_weights: "à¤†à¤•à¤¾à¤°/à¤µà¤œà¤¨",
-        col_state: "à¤¸à¥à¤¥à¤¿à¤¤à¤¿",
-        state_ready: "à¤¤à¥ˆà¤¯à¤¾à¤°",
-        state_standby: "à¤¸à¥à¤Ÿà¥ˆà¤‚à¤¡à¤¬à¤¾à¤¯",
-        drawer_pane_title: "à¤¨à¤¿à¤°à¥€à¤•à¥à¤·à¤£ à¤«à¤²à¤•",
-        drawer_assigned_capabilities: "à¤…à¤¸à¤¾à¤‡à¤¨ à¤•à¥€ à¤—à¤ˆ à¤•à¥à¤·à¤®à¤¤à¤¾à¤à¤‚",
-        drawer_specifications: "à¤µà¤¿à¤¨à¤¿à¤°à¥à¤¦à¥‡à¤¶",
-        spec_context_window: "à¤¸à¤‚à¤¦à¤°à¥à¤­ à¤µà¤¿à¤‚à¤¡à¥‹",
-        drawer_runtime_status: "à¤°à¤¨à¤Ÿà¤¾à¤‡à¤® à¤¸à¥à¤¥à¤¿à¤¤à¤¿",
-        runtime_state: "à¤¸à¥à¤¥à¤¿à¤¤à¤¿",
-        runtime_ready_warm: "à¤¤à¥ˆà¤¯à¤¾à¤° / à¤¸à¤•à¥à¤°à¤¿à¤¯",
-        cap_1: "à¤•à¥‹à¤¡ à¤¨à¤¿à¤°à¥à¤®à¤¾à¤£ à¤”à¤° à¤ªà¥à¤¨à¤°à¥à¤—à¤ à¤¨",
-        cap_2: "à¤¸à¥à¤¥à¤¿à¤° à¤¸à¤‚à¤°à¤šà¤¨à¤¾à¤¤à¥à¤®à¤• à¤µà¤¿à¤¶à¥à¤²à¥‡à¤·à¤£",
-        cap_3: "à¤¸à¥à¤µà¤¾à¤¯à¤¤à¥à¤¤ à¤¤à¥à¤°à¥à¤Ÿà¤¿ à¤¸à¥à¤¥à¤¾à¤¨ à¤¨à¤¿à¤°à¥à¤§à¤¾à¤°à¤£",
-        cap_4: "à¤¨à¤¿à¤¯à¤¤à¤¾à¤¤à¥à¤®à¤• à¤ªà¤°à¥€à¤•à¥à¤·à¤£ à¤¸à¤‚à¤¶à¥à¤²à¥‡à¤·à¤£",
-        action_set_default: "à¤¡à¤¿à¤«à¤¼à¥‰à¤²à¥à¤Ÿ à¤•à¥‹à¤¡à¤° à¤•à¥‡ à¤°à¥‚à¤ª à¤®à¥‡à¤‚ à¤¸à¥‡à¤Ÿ à¤•à¤°à¥‡à¤‚",
-        action_verify_sha: "SHA à¤¸à¤¤à¥à¤¯à¤¾à¤ªà¤¿à¤¤ à¤•à¤°à¥‡à¤‚",
-        action_unload: "à¤…à¤¨à¤²à¥‹à¤¡ à¤•à¤°à¥‡à¤‚",
-      },
-      kn: {
-        nav_chat: "à²šà²¾à²Ÿà³",
-        nav_knowledge: "à²œà³à²žà²¾à²¨à²•à³‹à²¶",
-        nav_code: "à²•à³‹à²¡à³",
-        nav_models: "à²®à²¾à²¦à²°à²¿à²—à²³à³",
-        nav_logs: "à²²à²¾à²—à³â€Œà²—à²³à³",
-        badge_offline: "à²†à²«à³â€Œà²²à³ˆà²¨à³",
-        settings_title: "à²†à²¦à³à²¯à²¤à³†à²—à²³à³",
-        settings_theme: "à²¥à³€à²®à³",
-        settings_lang: "à²­à²¾à²·à³†",
-        page_title: "à²®à²¾à²¦à²°à²¿à²—à²³à³",
-        page_desc: "Vault à²—à³† à²²à²­à³à²¯à²µà²¿à²°à³à²µ à²¸à³à²¥à²³à³€à²¯ à²¬à³à²¦à³à²§à²¿à²µà²‚à²¤à²¿à²•à³†.",
-        btn_add_model: "+ à²®à²¾à²¦à²°à²¿ à²¸à³‡à²°à²¿à²¸à²¿",
-        autoroute_label: "à²¸à³à²µà²¯à²‚ à²°à³‚à²Ÿà²¿à²‚à²—à³",
-        autoroute_desc:
-          "à²ªà³à²°à²¤à²¿à²¯à³Šà²‚à²¦à³ à²ªà³à²°à²¶à³à²¨à³† à²®à²¤à³à²¤à³ à²ªà³ˆà²ªà³â€Œà²²à³ˆà²¨à³ à²•à²¾à²°à³à²¯à²•à³à²•à²¾à²—à²¿ Vault à²¸à³à²µà²¯à²‚à²šà²¾à²²à²¿à²¤à²µà²¾à²—à²¿ à²¸à³‚à²•à³à²¤à²µà²¾à²¦ à²¸à³à²¥à²³à³€à²¯ à²®à²¾à²¦à²°à²¿à²¯à²¨à³à²¨à³ à²†à²¯à³à²•à³† à²®à²¾à²¡à³à²¤à³à²¤à²¦à³†.",
-        state_active: "à²¸à²•à³à²°à²¿à²¯",
-        col_model: "à²®à²¾à²¦à²°à²¿",
-        col_capability: "à²¸à²¾à²®à²°à³à²¥à³à²¯",
-        col_weights: "à²—à²¾à²¤à³à²°/à²¤à³‚à²•",
-        col_state: "à²¸à³à²¥à²¿à²¤à²¿",
-        state_ready: "à²¸à²¿à²¦à³à²§à²µà²¾à²—à²¿à²¦à³†",
-        state_standby: "à²¸à³à²Ÿà³à²¯à²¾à²‚à²¡à³â€Œà²¬à³ˆ",
-        drawer_pane_title: "à²ªà²°à²¿à²¶à³€à²²à²¨à²¾ à²«à²²à²•",
-        drawer_assigned_capabilities: "à²¨à²¿à²¯à³‹à²œà²¿à²¸à²²à²¾à²¦ à²¸à²¾à²®à²°à³à²¥à³à²¯à²—à²³à³",
-        drawer_specifications: "à²µà²¿à²µà²°à²£à³†à²—à²³à³",
-        spec_context_window: "à²¸à²‚à²¦à²°à³à²­ à²µà²¿à²‚à²¡à³‹",
-        drawer_runtime_status: "à²°à²¨à³â€Œà²Ÿà³ˆà²®à³ à²¸à³à²¥à²¿à²¤à²¿",
-        runtime_state: "à²¸à³à²¥à²¿à²¤à²¿",
-        runtime_ready_warm: "à²¸à²¿à²¦à³à²§à²µà²¾à²—à²¿à²¦à³† / à²¸à²•à³à²°à²¿à²¯",
-        cap_1: "à²•à³‹à²¡à³ à²œà²¨à²°à³‡à²·à²¨à³ à²®à²¤à³à²¤à³ à²°à²¿à²«à³à²¯à²¾à²•à³à²Ÿà²°à²¿à²‚à²—à³",
-        cap_2: "à²¸à³à²¥à²¿à²° à²°à²šà²¨à²¾à²¤à³à²®à²• à²µà²¿à²¶à³à²²à³‡à²·à²£à³†",
-        cap_3: "à²¸à³à²µà²¾à²¯à²¤à³à²¤ à²¦à³‹à²· à²ªà²¤à³à²¤à³†",
-        cap_4: "à²¨à²¿à²°à³à²£à²¾à²¯à²• à²ªà²°à³€à²•à³à²·à²¾ à²¸à²‚à²¶à³à²²à³‡à²·à²£à³†",
-        action_set_default: "à²¡à³€à²«à²¾à²²à³à²Ÿà³ à²•à³‹à²¡à²°à³ à²†à²—à²¿ à²¹à³Šà²‚à²¦à²¿à²¸à²¿",
-        action_verify_sha: "SHA à²ªà²°à²¿à²¶à³€à²²à²¿à²¸à²¿",
-        action_unload: "à²…à²¨à³â€Œà²²à³‹à²¡à³ à²®à²¾à²¡à²¿",
-      },
-    };
+const EMPTY_FORM = {
+  key: '', display_name: '', base_url: 'http://127.0.0.1:8082', model_id: '',
+  model_path: '', mmproj_path: '', timeout: 120, max_context_tokens: 8192,
+  priority: 10, enabled: true,
+  capabilities: { text: true, vision: false, code: false, agentic: false },
+  task_types: 'general',
+}
 
-    // State Management
-    let currentTheme = localStorage.getItem("vault_theme") || "system";
-    let currentLang = localStorage.getItem("vault_lang") || "en";
+function statusColor(status) {
+  if (status === 'available') return '#176B5B'
+  if (status === 'timeout' || status === 'misconfigured') return '#C08A2D'
+  return '#9AA09A'
+}
 
-    const htmlEl = document.documentElement;
-    const settingsBtn = document.getElementById("settings-trigger");
-    const settingsPopover = document.getElementById("settings-popover");
-    const themeButtons = document.querySelectorAll(".theme-btn");
-    const langButtons = document.querySelectorAll(".lang-btn");
+// Convert a catalog card object into a POST/PUT body the backend accepts.
+function toDefinition(m) {
+  return {
+    key: m.key, display_name: m.display_name, provider_type: 'llama_cpp',
+    base_url: m.base_url, model_id: m.model_id, model_path: m.model_path || null,
+    mmproj_path: m.mmproj_path || null, timeout: m.timeout ?? 120,
+    max_context_tokens: m.max_context_tokens ?? 8192,
+    capabilities: m.capabilities, task_types: m.task_types || [],
+    priority: m.priority ?? 10, enabled: m.enabled,
+  }
+}
 
-    function applyTheme(theme) {
-      currentTheme = theme;
-      localStorage.setItem("vault_theme", theme);
+export default function ModelsScreen() {
+  const [models, setModels] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [form, setForm] = useState(null) // null = closed; object = add/edit modal
+  const [editingKey, setEditingKey] = useState(null)
 
-      const isSystemDark = window.matchMedia(
-        "(prefers-color-scheme: dark)",
-      ).matches;
-      if (theme === "dark" || (theme === "system" && isSystemDark)) {
-        htmlEl.classList.add("dark");
-      } else {
-        htmlEl.classList.remove("dark");
-      }
+  // Auto-routing tester
+  const [testTask, setTestTask] = useState('')
+  const [testResult, setTestResult] = useState(null)
+  const [testing, setTesting] = useState(false)
 
-      themeButtons.forEach((btn) => {
-        const active = btn.getAttribute("data-theme-val") === theme;
-        btn.className = `theme-btn py-1 text-center font-label-sm text-label-sm rounded-DEFAULT transition-all ${
-          active
-            ? "bg-surface text-primary shadow-xs font-semibold border border-border-subtle"
-            : "text-text-muted hover:text-text-main"
-        }`;
-      });
+  const refresh = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await listModelCatalog()
+      setModels(data.models || [])
+      setError('')
+    } catch (err) {
+      setError(err.message || 'Failed to load catalog')
+    } finally {
+      setLoading(false)
     }
+  }, [])
 
-    function applyLanguage(lang) {
-      currentLang = lang;
-      localStorage.setItem("vault_lang", lang);
-      htmlEl.setAttribute("lang", lang);
+  useEffect(() => { refresh() }, [refresh])
 
-      const dict = translations[lang] || translations.en;
-      document.querySelectorAll("[data-i18n]").forEach((el) => {
-        const key = el.getAttribute("data-i18n");
-        if (dict[key]) {
-          el.textContent = dict[key];
-        }
-      });
+  const handleReload = async () => {
+    setBusy(true)
+    try { await reloadModels(); await refresh() } finally { setBusy(false) }
+  }
 
-      langButtons.forEach((btn) => {
-        const active = btn.getAttribute("data-lang-val") === lang;
-        btn.className = `lang-btn py-1 text-center font-label-sm text-label-sm rounded-DEFAULT transition-all ${
-          active
-            ? "bg-surface text-primary shadow-xs font-semibold border border-border-subtle"
-            : "text-text-muted hover:text-text-main"
-        }`;
-      });
+  const toggleEnabled = async (m) => {
+    setBusy(true)
+    try {
+      await updateModelDefinition(m.key, { ...toDefinition(m), enabled: !m.enabled })
+      await refresh()
+    } catch (err) { setError(err.message) } finally { setBusy(false) }
+  }
+
+  const handleDelete = async (key) => {
+    if (!window.confirm(`Remove model "${key}" from the catalog?`)) return
+    setBusy(true)
+    try { await deleteModelDefinition(key); await refresh() }
+    catch (err) { setError(err.message) } finally { setBusy(false) }
+  }
+
+  const openAdd = () => { setEditingKey(null); setForm({ ...EMPTY_FORM }) }
+  const openEdit = (m) => {
+    setEditingKey(m.key)
+    setForm({ ...m, model_path: m.model_path || '', mmproj_path: m.mmproj_path || '',
+      task_types: (m.task_types || []).join(', ') })
+  }
+
+  const submitForm = async (e) => {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    const payload = {
+      ...form, provider_type: 'llama_cpp',
+      model_path: form.model_path || null, mmproj_path: form.mmproj_path || null,
+      timeout: Number(form.timeout) || 120,
+      max_context_tokens: Number(form.max_context_tokens) || 8192,
+      priority: Number(form.priority) || 10,
+      task_types: String(form.task_types).split(',').map((s) => s.trim()).filter(Boolean),
     }
+    try {
+      if (editingKey) await updateModelDefinition(editingKey, payload)
+      else await createModelDefinition(payload)
+      setForm(null)
+      await refresh()
+    } catch (err) { setError(err.message) } finally { setBusy(false) }
+  }
 
-    // System theme listener
-    window
-      .matchMedia("(prefers-color-scheme: dark)")
-      .addEventListener("change", () => {
-        if (currentTheme === "system") {
-          applyTheme("system");
-        }
-      });
-
-    // Settings popover toggling
-    if (settingsBtn && settingsPopover) {
-      settingsBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        settingsPopover.classList.toggle("hidden");
-      });
-
-      document.addEventListener("click", (e) => {
-        if (!settingsPopover.contains(e.target) && e.target !== settingsBtn) {
-          settingsPopover.classList.add("hidden");
-        }
-      });
-    }
-
-    // Attach control listeners
-    themeButtons.forEach((btn) => {
-      btn.addEventListener("click", () => {
-        applyTheme(btn.getAttribute("data-theme-val"));
-      });
-    });
-
-    langButtons.forEach((btn) => {
-      btn.addEventListener("click", () => {
-        applyLanguage(btn.getAttribute("data-lang-val"));
-      });
-    });
-
-    // Initialize
-    applyTheme(currentTheme);
-    applyLanguage(currentLang);
-
-    const TARGETS = [
-      ["chat", ["chat"]],
-      ["kb", ["knowledge"]],
-      ["code", ["code"]],
-      ["models", ["models"]],
-      ["logs", ["logs", "activity"]],
-    ];
-    const sidebar = root.querySelector("aside");
-    if (sidebar) {
-      sidebar.querySelectorAll('a[href="#"]').forEach((a) => {
-        const key = [
-          a.id,
-          a.dataset.path,
-          a.dataset.i18nTitle,
-          a.getAttribute("title"),
-          a.getAttribute("aria-label"),
-          a.textContent,
-        ]
-          .join(" ")
-          .toLowerCase();
-        const hit = TARGETS.find(([, words]) =>
-          words.some((w) => key.includes(w)),
-        );
-        if (!hit) return;
-        a.addEventListener("click", (e) => {
-          e.preventDefault();
-          navRef.current && navRef.current(hit[0]);
-        });
-      });
-    }
-    root.querySelectorAll("[data-onclick]").forEach((el) => {
-      el.addEventListener("click", () => {
-        eval(el.getAttribute("data-onclick"));
-      });
-    });
-  }, []);
+  const runRoutingTest = async () => {
+    if (!testTask.trim()) return
+    setTesting(true)
+    try {
+      const res = await runAgentTask(testTask, null)
+      setTestResult({
+        model: res.selected_model, reason: res.selection_reason, type: res.task_type,
+      })
+    } catch (err) {
+      setTestResult({ model: '—', reason: err.message, type: 'error' })
+    } finally { setTesting(false) }
+  }
 
   return (
-    <div ref={rootRef} className={"min-h-screen bg-background text-text-main"}>
-      {" "}
-      <main
-        className={
-          "min-h-[calc(100vh-2.5rem)] px-margin-desktop py-gutter-desktop "
-        }
-      >
-        {" "}
-        <div className={"flex flex-col w-full"}>
-          {" "}
-          <div
-            className={
-              "flex flex-col lg:flex-row min-h-[calc(100vh-6.5rem)] gap-space-lg"
-            }
-          >
-            {" "}
-            <div className={"flex-1 flex flex-col min-w-0 pr-0 lg:pr-space-md"}>
-              {" "}
-              <div className={"flex items-end justify-between pb-space-lg"}>
-                {" "}
-                <div>
-                  {" "}
-                  <h1
-                    className={
-                      "font-headline-xl text-headline-xl text-text-main tracking-tight font-normal"
-                    }
-                    data-i18n={"page_title"}
-                  >
-                    Models
-                  </h1>{" "}
-                  <p
-                    className={"font-body-md text-body-md text-text-muted mt-1"}
-                    data-i18n={"page_desc"}
-                  >
-                    Local intelligence available to Vault.
-                  </p>{" "}
-                </div>{" "}
-                <div className={"flex items-center gap-space-sm"}>
-                  {" "}
-                  <button
-                    className={
-                      "inline-flex items-center gap-space-xs px-space-md py-1.5 rounded-DEFAULT text-white font-label-md text-label-md tracking-wider transition-colors duration-150 shadow-sm"
-                    }
-                    style={{ backgroundColor: "rgb(23, 107, 91)" }}
-                  >
-                    {" "}
-                    <span
-                      className={
-                        "material-symbols-outlined text-[15px] text-white"
-                      }
-                    >
-                      add
-                    </span>{" "}
-                    <span className={""} data-i18n={"btn_add_model"}>
-                      + ADD MODEL
-                    </span>{" "}
-                  </button>{" "}
-                </div>{" "}
-              </div>{" "}
-              <div
-                className={
-                  "flex items-center justify-between py-2.5 px-space-md bg-surface rounded-md border border-border-subtle mb-space-md shadow-sm"
-                }
-              >
-                <div className={"flex items-center gap-space-sm min-w-0"}>
-                  {" "}
-                  <span
-                    className={
-                      "font-label-sm text-label-sm tracking-widest uppercase shrink-0 font-medium"
-                    }
-                    data-i18n={"autoroute_label"}
-                    style={{ color: "#176B5B" }}
-                  >
-                    AUTO ROUTING
-                  </span>{" "}
-                  <span className={"text-border-subtle text-label-sm"}>/</span>{" "}
-                  <span
-                    className={
-                      "font-body-sm text-body-sm text-text-muted truncate"
-                    }
-                    data-i18n={"autoroute_desc"}
-                  >
-                    Vault automatically selects the appropriate local model for
-                    each query and pipeline task.
-                  </span>{" "}
-                </div>{" "}
-                <div className={"flex items-center gap-2 shrink-0 pl-space-md"}>
-                  {" "}
-                  <span
-                    className={"font-label-sm text-label-sm font-code-md"}
-                    data-i18n={"state_active"}
-                    style={{ color: "#176B5B" }}
-                  >
-                    ACTIVE
-                  </span>{" "}
-                  <span
-                    className={"w-1.5 h-1.5 rounded-full"}
-                    style={{ backgroundColor: "#176B5B" }}
-                  ></span>{" "}
-                </div>
-              </div>{" "}
-              <div
-                className={
-                  "flex flex-col bg-surface rounded-DEFAULT border border-border-subtle overflow-hidden shadow-sm"
-                }
-              >
-                {" "}
-                <div
-                  className={
-                    "grid grid-cols-12 px-space-md py-space-sm text-text-subtle font-label-sm text-label-sm tracking-wider border-b border-border-subtle bg-surface-alt"
-                  }
-                >
-                  {" "}
-                  <div
-                    className={"col-span-5 flex items-center"}
-                    data-i18n={"col_model"}
-                  >
-                    MODEL
-                  </div>{" "}
-                  <div
-                    className={"col-span-3 flex items-center"}
-                    data-i18n={"col_capability"}
-                  >
-                    CAPABILITY
-                  </div>{" "}
-                  <div
-                    className={"col-span-2 flex items-center"}
-                    data-i18n={"col_weights"}
-                  >
-                    WEIGHTS
-                  </div>{" "}
-                  <div
-                    className={"col-span-2 flex items-center justify-end"}
-                    data-i18n={"col_state"}
-                  >
-                    STATE
-                  </div>{" "}
-                </div>{" "}
-                <div
-                  className={
-                    "grid grid-cols-12 px-space-md py-3.5 items-center bg-primary-tint border-l-[3px] border-l-primary border-b border-border-subtle cursor-pointer transition-colors duration-150 group"
-                  }
-                  style={{
-                    backgroundColor: "rgb(241, 247, 245)",
-                    borderLeftColor: "rgb(23, 107, 91)",
-                  }}
-                >
-                  {" "}
-                  <div
-                    className={
-                      "col-span-5 flex flex-col justify-center min-w-0 pr-space-sm"
-                    }
-                  >
-                    {" "}
-                    <div className={"flex items-center gap-space-sm"}>
-                      {" "}
-                      <span
-                        className={
-                          "font-headline-md text-headline-md text-text-main font-normal tracking-tight truncate"
-                        }
-                      >
-                        Qwen Coder
-                      </span>{" "}
-                      <span
-                        className={
-                          "px-1.5 py-0.5 rounded-DEFAULT border border-[#176B5B]/20 text-[#176B5B] bg-[#E4F0EC] font-label-sm text-[0.625rem] tracking-wider shrink-0 font-code-md"
-                        }
-                        style={{
-                          backgroundColor: "rgb(228, 240, 236)",
-                          color: "rgb(23, 107, 91)",
-                          borderColor: "rgb(192, 222, 214)",
-                        }}
-                      >
-                        ACTIVE IN CODESPACE
-                      </span>{" "}
-                    </div>{" "}
-                    <span
-                      className={
-                        "font-code-md text-label-sm text-text-muted tracking-tight mt-0.5 truncate"
-                      }
-                    >
-                      Qwen2.5-Coder-32B-Instruct Â· q4_k_m
-                    </span>{" "}
-                  </div>{" "}
-                  <div className={"col-span-3 flex items-center"}>
-                    {" "}
-                    <span
-                      className={"font-body-sm text-body-sm text-text-main"}
-                    >
-                      Coding &amp; Syntax
-                    </span>{" "}
-                  </div>{" "}
-                  <div className={"col-span-2 flex items-center"}>
-                    {" "}
-                    <span
-                      className={"font-code-md text-body-sm text-text-main"}
-                    >
-                      32B
-                    </span>{" "}
-                  </div>{" "}
-                  <div
-                    className={
-                      "col-span-2 flex items-center justify-end gap-space-sm"
-                    }
-                  >
-                    {" "}
-                    <span
-                      className={"w-1.5 h-1.5 rounded-full bg-primary"}
-                      style={{ backgroundColor: "rgb(23, 107, 91)" }}
-                    ></span>{" "}
-                    <span
-                      className={
-                        "font-label-sm text-label-sm text-text-main tracking-wider font-medium"
-                      }
-                      data-i18n={"state_ready"}
-                    >
-                      READY
-                    </span>{" "}
-                    <span
-                      className={
-                        "material-symbols-outlined text-text-muted text-[16px] ml-1"
-                      }
-                    >
-                      chevron_right
-                    </span>{" "}
-                  </div>{" "}
-                </div>{" "}
-                <div
-                  className={
-                    "grid grid-cols-12 px-space-md py-3.5 items-center bg-surface hover:bg-surface-alt border-b border-border-subtle cursor-pointer transition-colors duration-150 group"
-                  }
-                >
-                  {" "}
-                  <div
-                    className={
-                      "col-span-5 flex flex-col justify-center min-w-0 pr-space-sm"
-                    }
-                  >
-                    {" "}
-                    <div className={"flex items-center gap-space-sm"}>
-                      {" "}
-                      <span
-                        className={
-                          "font-headline-md text-headline-md text-text-main font-normal tracking-tight truncate group-hover:text-black dark:group-hover:text-white"
-                        }
-                      >
-                        Llama
-                      </span>{" "}
-                    </div>{" "}
-                    <span
-                      className={
-                        "font-code-md text-label-sm text-text-muted tracking-tight mt-0.5 truncate"
-                      }
-                    >
-                      Llama-3.3-70B-Instruct Â· q5_k_m
-                    </span>{" "}
-                  </div>{" "}
-                  <div className={"col-span-3 flex items-center"}>
-                    {" "}
-                    <span
-                      className={"font-body-sm text-body-sm text-text-main"}
-                    >
-                      Reasoning &amp; Synthesis
-                    </span>{" "}
-                  </div>{" "}
-                  <div className={"col-span-2 flex items-center"}>
-                    {" "}
-                    <span
-                      className={"font-code-md text-body-sm text-text-main"}
-                    >
-                      70B
-                    </span>{" "}
-                  </div>{" "}
-                  <div
-                    className={
-                      "col-span-2 flex items-center justify-end gap-space-sm"
-                    }
-                  >
-                    {" "}
-                    <span
-                      className={"w-1.5 h-1.5 rounded-full bg-primary"}
-                      style={{ backgroundColor: "rgb(23, 107, 91)" }}
-                    ></span>{" "}
-                    <span
-                      className={
-                        "font-label-sm text-label-sm text-text-main tracking-wider font-medium"
-                      }
-                      data-i18n={"state_ready"}
-                    >
-                      READY
-                    </span>{" "}
-                    <span
-                      className={
-                        "material-symbols-outlined text-text-muted group-hover:text-text-main text-[16px] ml-1"
-                      }
-                    >
-                      chevron_right
-                    </span>{" "}
-                  </div>{" "}
-                </div>{" "}
-                <div
-                  className={
-                    "grid grid-cols-12 px-space-md py-3.5 items-center bg-surface hover:bg-surface-alt border-b border-border-subtle cursor-pointer transition-colors duration-150 group"
-                  }
-                >
-                  {" "}
-                  <div
-                    className={
-                      "col-span-5 flex flex-col justify-center min-w-0 pr-space-sm"
-                    }
-                  >
-                    {" "}
-                    <div className={"flex items-center gap-space-sm"}>
-                      {" "}
-                      <span
-                        className={
-                          "font-headline-md text-headline-md text-text-main font-normal tracking-tight truncate group-hover:text-black dark:group-hover:text-white"
-                        }
-                      >
-                        Vision Model
-                      </span>{" "}
-                    </div>{" "}
-                    <span
-                      className={
-                        "font-code-md text-label-sm text-text-muted tracking-tight mt-0.5 truncate"
-                      }
-                    >
-                      Pixtral-12B Â· Enclave Vision-OCR
-                    </span>{" "}
-                  </div>{" "}
-                  <div className={"col-span-3 flex items-center"}>
-                    {" "}
-                    <span
-                      className={"font-body-sm text-body-sm text-text-main"}
-                    >
-                      Multimodal &amp; Schematics
-                    </span>{" "}
-                  </div>{" "}
-                  <div className={"col-span-2 flex items-center"}>
-                    {" "}
-                    <span
-                      className={"font-code-md text-body-sm text-text-main"}
-                    >
-                      12B
-                    </span>{" "}
-                  </div>{" "}
-                  <div
-                    className={
-                      "col-span-2 flex items-center justify-end gap-space-sm"
-                    }
-                  >
-                    {" "}
-                    <span
-                      className={"w-1.5 h-1.5 rounded-full bg-primary"}
-                      style={{ backgroundColor: "rgb(23, 107, 91)" }}
-                    ></span>{" "}
-                    <span
-                      className={
-                        "font-label-sm text-label-sm text-text-main tracking-wider font-medium"
-                      }
-                      data-i18n={"state_ready"}
-                    >
-                      READY
-                    </span>{" "}
-                    <span
-                      className={
-                        "material-symbols-outlined text-text-muted group-hover:text-text-main text-[16px] ml-1"
-                      }
-                    >
-                      chevron_right
-                    </span>{" "}
-                  </div>{" "}
-                </div>{" "}
-                <div
-                  className={
-                    "grid grid-cols-12 px-space-md py-3.5 items-center bg-surface hover:bg-surface-alt cursor-pointer transition-colors duration-150 group"
-                  }
-                >
-                  {" "}
-                  <div
-                    className={
-                      "col-span-5 flex flex-col justify-center min-w-0 pr-space-sm"
-                    }
-                  >
-                    {" "}
-                    <div className={"flex items-center gap-space-sm"}>
-                      {" "}
-                      <span
-                        className={
-                          "font-headline-md text-headline-md text-text-main font-normal tracking-tight truncate group-hover:text-black dark:group-hover:text-white"
-                        }
-                      >
-                        DeepSeek R1
-                      </span>{" "}
-                    </div>{" "}
-                    <span
-                      className={
-                        "font-code-md text-label-sm text-text-muted tracking-tight mt-0.5 truncate"
-                      }
-                    >
-                      DeepSeek-R1-Distill-Qwen-32B Â· f16
-                    </span>{" "}
-                  </div>{" "}
-                  <div className={"col-span-3 flex items-center"}>
-                    {" "}
-                    <span
-                      className={"font-body-sm text-body-sm text-text-main"}
-                    >
-                      Deterministic Verification
-                    </span>{" "}
-                  </div>{" "}
-                  <div className={"col-span-2 flex items-center"}>
-                    {" "}
-                    <span
-                      className={"font-code-md text-body-sm text-text-main"}
-                    >
-                      32B
-                    </span>{" "}
-                  </div>{" "}
-                  <div
-                    className={
-                      "col-span-2 flex items-center justify-end gap-space-sm"
-                    }
-                  >
-                    {" "}
-                    <span
-                      className={"w-1.5 h-1.5 rounded-full bg-text-subtle"}
-                    ></span>{" "}
-                    <span
-                      className={
-                        "font-label-sm text-label-sm text-text-subtle tracking-wider font-medium"
-                      }
-                      data-i18n={"state_standby"}
-                    >
-                      STANDBY
-                    </span>{" "}
-                    <span
-                      className={
-                        "material-symbols-outlined text-text-muted group-hover:text-text-main text-[16px] ml-1"
-                      }
-                    >
-                      chevron_right
-                    </span>{" "}
-                  </div>{" "}
-                </div>{" "}
-              </div>{" "}
-              <div
-                className={
-                  "mt-space-lg flex items-center justify-between text-text-subtle font-label-sm text-label-sm px-1"
-                }
-              >
-                {" "}
-                <div className={"flex items-center gap-space-sm"}>
-                  {" "}
-                  <span className={"text-text-subtle"}>
-                    MODEL INTEGRITY:
-                  </span>{" "}
-                  <span className={"text-text-muted font-code-md"}>
-                    ATTESTED BY SECURE ENCLAVE 0x9AF0
-                  </span>{" "}
-                </div>{" "}
-                <div className={"flex items-center gap-space-sm"}>
-                  {" "}
-                  <span className={"text-text-subtle"}>STORE:</span>{" "}
-                  <span className={"font-code-md text-text-muted"}>
-                    /dev/nvme0n1p3/vault_models
-                  </span>{" "}
-                </div>{" "}
-              </div>{" "}
-            </div>{" "}
-            <div
-              className={
-                "w-full lg:w-80 shrink-0 flex flex-col bg-surface rounded-DEFAULT border border-border-subtle shadow-sm overflow-hidden p-space-md"
-              }
-            >
-              <div
-                className={
-                  "flex items-center justify-between pb-space-sm border-b border-border-subtle mb-space-md"
-                }
-              >
-                <div className={"flex items-center gap-2"}>
-                  <span
-                    className={
-                      "material-symbols-outlined text-[18px] text-[#176B5B]"
-                    }
-                  >
-                    verified
-                  </span>
-                  <span
-                    className={
-                      "font-label-sm text-label-sm uppercase tracking-wider text-text-muted font-medium"
-                    }
-                    data-i18n={"drawer_pane_title"}
-                  >
-                    INSPECTION PANE
-                  </span>
-                </div>
-                <span
-                  className={
-                    "px-1.5 py-0.5 rounded-DEFAULT bg-[#EFECE4] text-text-muted font-code-md text-[10px] uppercase border border-border-subtle"
-                  }
-                >
-                  v2.5
-                </span>
-              </div>
-              <div className={"flex flex-col gap-1 mb-space-md"}>
-                <div className={"flex items-center justify-between"}>
-                  <h2
-                    className={
-                      "font-headline-md text-headline-md text-text-main font-semibold tracking-tight"
-                    }
-                  >
-                    Qwen Coder
-                  </h2>
-                  <span
-                    className={
-                      "px-1.5 py-0.5 rounded-DEFAULT border border-[#176B5B]/20 text-[#176B5B] bg-[#E4F0EC] font-label-sm text-[0.625rem] tracking-wider font-code-md"
-                    }
-                  >
-                    ACTIVE
-                  </span>
-                </div>
-                <span className={"font-code-md text-label-sm text-text-muted"}>
-                  Qwen2.5-Coder-32B-Instruct
-                </span>
-              </div>
-              <div
-                className={
-                  "flex flex-col gap-space-sm mb-space-md pb-space-md border-b border-border-subtle"
-                }
-              >
-                <span
-                  className={
-                    "font-label-sm text-label-sm text-text-subtle uppercase tracking-wider"
-                  }
-                  data-i18n={"drawer_runtime_status"}
-                >
-                  Runtime Status
-                </span>
-                <div
-                  className={
-                    "flex items-center justify-between bg-surface-alt p-2 rounded-DEFAULT border border-border-subtle"
-                  }
-                >
-                  <div className={"flex items-center gap-2"}>
-                    <span
-                      className={"w-2 h-2 rounded-full bg-primary"}
-                      style={{ backgroundColor: "#176B5B" }}
-                    ></span>
-                    <span
-                      className={
-                        "font-code-md text-label-sm text-text-main font-medium"
-                      }
-                      data-i18n={"runtime_ready_warm"}
-                    >
-                      READY / WARM
-                    </span>
-                  </div>
-                  <span className={"font-code-md text-[11px] text-text-muted"}>
-                    VRAM 22.4 GB
-                  </span>
-                </div>
-              </div>
-              <div
-                className={
-                  "flex flex-col gap-space-sm mb-space-md pb-space-md border-b border-border-subtle"
-                }
-              >
-                <span
-                  className={
-                    "font-label-sm text-label-sm text-text-subtle uppercase tracking-wider"
-                  }
-                  data-i18n={"drawer_specifications"}
-                >
-                  Specifications
-                </span>
-                <div
-                  className={"flex flex-col gap-1 text-label-sm font-code-md"}
-                >
-                  <div className={"flex justify-between py-0.5"}>
-                    <span className={"text-text-muted"}>Quantization</span>
-                    <span className={"text-text-main"}>q4_k_m</span>
-                  </div>
-                  <div className={"flex justify-between py-0.5"}>
-                    <span
-                      className={"text-text-muted"}
-                      data-i18n={"spec_context_window"}
-                    >
-                      Context Window
-                    </span>
-                    <span className={"text-text-main"}>32,768 tokens</span>
-                  </div>
-                  <div className={"flex justify-between py-0.5"}>
-                    <span className={"text-text-muted"}>Parameter Size</span>
-                    <span className={"text-text-main"}>32.5B</span>
-                  </div>
-                  <div className={"flex justify-between py-0.5"}>
-                    <span className={"text-text-muted"}>Compute Enclave</span>
-                    <span className={"text-text-main"}>NPU-0 Â· Isolated</span>
-                  </div>
-                </div>
-              </div>
-              <div className={"flex flex-col gap-2 mb-space-md"}>
-                <span
-                  className={
-                    "font-label-sm text-label-sm text-text-subtle uppercase tracking-wider"
-                  }
-                  data-i18n={"drawer_assigned_capabilities"}
-                >
-                  Assigned Capabilities
-                </span>
-                <div className={"flex flex-wrap gap-1"}>
-                  <span
-                    className={
-                      "px-2 py-1 rounded-DEFAULT bg-[#EFECE4] border border-border-subtle text-text-main font-body-sm text-[11px]"
-                    }
-                    data-i18n={"cap_1"}
-                  >
-                    Code generation &amp; refactoring
-                  </span>
-                  <span
-                    className={
-                      "px-2 py-1 rounded-DEFAULT bg-[#EFECE4] border border-border-subtle text-text-main font-body-sm text-[11px]"
-                    }
-                    data-i18n={"cap_2"}
-                  >
-                    Static structural analysis
-                  </span>
-                  <span
-                    className={
-                      "px-2 py-1 rounded-DEFAULT bg-[#EFECE4] border border-border-subtle text-text-main font-body-sm text-[11px]"
-                    }
-                    data-i18n={"cap_3"}
-                  >
-                    Autonomous error localization
-                  </span>
-                </div>
-              </div>
-              <div className={"mt-auto flex flex-col gap-2 pt-2"}>
-                <button
-                  className={
-                    "w-full py-2 rounded-DEFAULT text-white font-label-md text-label-md tracking-wider transition-colors duration-150 shadow-sm flex items-center justify-center gap-1.5"
-                  }
-                  data-i18n={"action_set_default"}
-                  style={{ backgroundColor: "#176B5B" }}
-                >
-                  <span className={"material-symbols-outlined text-[15px]"}>
-                    check_circle
-                  </span>
-                  <span className={""}>SET AS DEFAULT CODER</span>
-                </button>
-                <div className={"flex gap-2"}>
-                  <button
-                    className={
-                      "flex-1 py-1.5 rounded-DEFAULT bg-surface-alt hover:bg-border-subtle border border-border-subtle font-label-sm text-label-sm text-text-main transition-colors"
-                    }
-                    data-i18n={"action_verify_sha"}
-                  >
-                    VERIFY SHA
-                  </button>
-                  <button
-                    className={
-                      "flex-1 py-1.5 rounded-DEFAULT bg-surface-alt hover:bg-border-subtle border border-border-subtle font-label-sm text-label-sm text-error transition-colors"
-                    }
-                    data-i18n={"action_unload"}
-                  >
-                    UNLOAD
-                  </button>
-                </div>
-              </div>
-            </div>{" "}
-          </div>{" "}
-        </div>{" "}
-      </main>{" "}
-      <footer
-        className={
-          "border-t border-border-subtle bg-surface px-margin-desktop py-space-xs "
-        }
-      >
-        {" "}
-        <div
-          className={
-            "flex items-center justify-between font-label-sm text-label-sm text-text-subtle"
-          }
-        >
-          <div className={"flex items-center gap-space-sm"}>
-            {" "}
-            <span className={""} style={{ color: "#176B5B" }}>
-              â—
-            </span>{" "}
-            <span className={""}>HARDWARE ENCLAVE ACTIVE</span>{" "}
-            <span className={"text-border-subtle"}>/</span>{" "}
-            <span className={""}>ZERO EXTERNAL TELEMETRY</span>{" "}
-            <span className={"text-border-subtle"}>/</span>{" "}
-            <span className={""}>SOVEREIGN AIR-GAP VERIFIED</span>{" "}
-          </div>{" "}
-          <div className={"flex items-center gap-space-md text-text-subtle"}>
-            {" "}
-            <span className={""}>KERNEL: SV-6.4.11-ONPREM</span>{" "}
-            <span
-              className={"font-code-md text-label-sm font-medium"}
-              style={{ color: "#176B5B" }}
-            >
-              SECURE_STATE: LOCKED
-            </span>{" "}
+    <div className="min-h-screen bg-[#F7F6F2] dark:bg-[#151614] text-[#20211F] dark:text-[#ECEAE3]">
+      <main className="max-w-6xl mx-auto px-6 py-8">
+        {/* Header */}
+        <div className="flex items-end justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-normal tracking-tight">Models</h1>
+            <p className="text-sm text-[#6B6E68] dark:text-[#9AA09A] mt-1">
+              Multi-model registry · deterministic auto-routing · add models without a restart.
+            </p>
           </div>
-        </div>{" "}
-      </footer>{" "}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleReload}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-[#E2DED5] dark:border-[#30332B] bg-white dark:bg-[#1E201C] text-sm hover:bg-[#EFECE4] dark:hover:bg-[#262922] transition-colors disabled:opacity-50"
+            >
+              <RefreshCw size={15} className={busy ? 'animate-spin' : ''} /> Reload
+            </button>
+            <button
+              onClick={openAdd}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-white text-sm font-medium shadow-sm transition-colors"
+              style={{ backgroundColor: '#176B5B' }}
+            >
+              <Plus size={15} /> Add Model
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-4 px-4 py-2.5 rounded-md border border-[#D98C8C] bg-[#F8E9E9] dark:bg-[#2A1D1D] text-[#9B3B3B] dark:text-[#E0A0A0] text-sm">
+            {error}
+          </div>
+        )}
+
+        {/* Auto-routing panel */}
+        <section className="mb-6 rounded-lg border border-[#E2DED5] dark:border-[#30332B] bg-white dark:bg-[#1E201C] p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Route size={18} style={{ color: '#176B5B' }} />
+            <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: '#176B5B' }}>
+              Auto-routing
+            </h2>
+            <span className="text-xs text-[#6B6E68] dark:text-[#9AA09A]">
+              deterministic · no LLM call · fully auditable
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+            {ROUTING_RULES.map(({ Icon, title, rule, to }) => (
+              <div key={title} className="rounded-md border border-[#E2DED5] dark:border-[#30332B] bg-[#F7F6F2] dark:bg-[#151614] p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Icon size={15} style={{ color: '#176B5B' }} />
+                  <span className="text-sm font-medium">{title}</span>
+                </div>
+                <p className="text-xs text-[#6B6E68] dark:text-[#9AA09A]">{rule}</p>
+                <p className="text-xs mt-1 font-mono" style={{ color: '#176B5B' }}>→ {to}</p>
+              </div>
+            ))}
+          </div>
+          {/* Routing tester */}
+          <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+            <input
+              value={testTask}
+              onChange={(e) => setTestTask(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && runRoutingTest()}
+              placeholder="Try a task, e.g. “refactor this python function”…"
+              className="flex-1 px-3 py-2 rounded-md border border-[#E2DED5] dark:border-[#30332B] bg-[#F7F6F2] dark:bg-[#151614] text-sm outline-none focus:border-[#176B5B]"
+            />
+            <button
+              onClick={runRoutingTest}
+              disabled={testing}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md border border-[#176B5B] text-sm font-medium transition-colors disabled:opacity-50"
+              style={{ color: '#176B5B' }}
+            >
+              {testing ? <Loader2 size={15} className="animate-spin" /> : <Zap size={15} />} Test routing
+            </button>
+          </div>
+          {testResult && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-[#6B6E68] dark:text-[#9AA09A]">Routed to</span>
+              <span className="px-2 py-0.5 rounded font-mono text-white" style={{ backgroundColor: '#176B5B' }}>
+                {testResult.model}
+              </span>
+              <span className="px-2 py-0.5 rounded border border-[#E2DED5] dark:border-[#30332B] font-mono text-xs">
+                {testResult.type}
+              </span>
+              <span className="text-[#6B6E68] dark:text-[#9AA09A] italic">{testResult.reason}</span>
+            </div>
+          )}
+        </section>
+
+        {/* Model cards */}
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-[#6B6E68]">
+            <Loader2 size={22} className="animate-spin" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {models.map((m) => (
+              <ModelCard
+                key={m.key} m={m} busy={busy}
+                onToggle={() => toggleEnabled(m)}
+                onEdit={() => openEdit(m)}
+                onDelete={() => handleDelete(m.key)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Air-gap footer */}
+        <div className="mt-8 flex items-center gap-2 text-xs text-[#6B6E68] dark:text-[#9AA09A]">
+          <ShieldCheck size={14} style={{ color: '#176B5B' }} />
+          All endpoints are loopback-enforced · zero external telemetry · sovereign air-gap verified.
+        </div>
+      </main>
+
+      <AnimatePresence>
+        {form && (
+          <ModelFormModal
+            form={form} setForm={setForm} onSubmit={submitForm}
+            onClose={() => setForm(null)} busy={busy} isEdit={!!editingKey}
+          />
+        )}
+      </AnimatePresence>
     </div>
-  );
+  )
 }
+
+function ModelCard({ m, busy, onToggle, onEdit, onDelete }) {
+  const enabledCaps = CAPS.filter((c) => m.capabilities?.[c.key])
+  return (
+    <div className={`rounded-lg border p-4 shadow-sm transition-opacity ${m.enabled ? 'opacity-100' : 'opacity-60'} border-[#E2DED5] dark:border-[#30332B] bg-white dark:bg-[#1E201C]`}>
+      <div className="flex items-start justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Cpu size={16} style={{ color: '#176B5B' }} />
+            <h3 className="text-lg font-medium tracking-tight truncate">{m.display_name}</h3>
+            <span className="px-1.5 py-0.5 rounded font-mono text-[10px] border border-[#E2DED5] dark:border-[#30332B] text-[#6B6E68] dark:text-[#9AA09A]">
+              {m.key}
+            </span>
+          </div>
+          <p className="text-xs font-mono text-[#6B6E68] dark:text-[#9AA09A] mt-1 truncate">
+            {m.model_id}
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <CircleDot size={13} style={{ color: statusColor(m.status) }} />
+          <span className="text-xs font-medium" style={{ color: statusColor(m.status) }}>
+            {(m.status || 'unknown').toUpperCase()}
+          </span>
+        </div>
+      </div>
+
+      {/* Endpoint + priority */}
+      <div className="flex items-center gap-3 mt-3 text-xs text-[#6B6E68] dark:text-[#9AA09A] font-mono">
+        <span className="inline-flex items-center gap-1"><Server size={12} /> {m.base_url}</span>
+        <span>priority {m.priority}</span>
+      </div>
+
+      {/* Capabilities */}
+      <div className="flex flex-wrap gap-1.5 mt-3">
+        {enabledCaps.map(({ key, label, Icon }) => (
+          <span key={key} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] border"
+            style={{ backgroundColor: '#E4F0EC', color: '#176B5B', borderColor: '#C0DED6' }}>
+            <Icon size={12} /> {label}
+          </span>
+        ))}
+      </div>
+
+      {/* Routes */}
+      {m.routes?.length > 0 && (
+        <p className="text-xs text-[#6B6E68] dark:text-[#9AA09A] mt-2">
+          <span className="font-medium">routes:</span> {m.routes.join(', ')}
+        </p>
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center justify-between mt-4 pt-3 border-t border-[#E2DED5] dark:border-[#30332B]">
+        <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+          <input type="checkbox" checked={!!m.enabled} disabled={busy}
+            onChange={onToggle} className="sr-only peer" />
+          <span className="relative w-9 h-5 rounded-full transition-colors bg-[#CFD2CB] dark:bg-[#3A3D35] peer-checked:bg-[#176B5B] after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:bg-white after:rounded-full after:transition-transform peer-checked:after:translate-x-4" />
+          <span className="text-xs text-[#6B6E68] dark:text-[#9AA09A]">
+            {m.enabled ? 'Enabled' : 'Disabled'}
+          </span>
+        </label>
+        <div className="flex items-center gap-1">
+          <button onClick={onEdit} disabled={busy}
+            className="p-1.5 rounded-md hover:bg-[#EFECE4] dark:hover:bg-[#262922] transition-colors" title="Edit">
+            <Pencil size={15} className="text-[#6B6E68] dark:text-[#9AA09A]" />
+          </button>
+          <button onClick={onDelete} disabled={busy}
+            className="p-1.5 rounded-md hover:bg-[#F8E9E9] dark:hover:bg-[#2A1D1D] transition-colors" title="Delete">
+            <Trash2 size={15} className="text-[#9B3B3B]" />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const inputCls =
+  'w-full px-3 py-2 rounded-md border border-[#E2DED5] dark:border-[#30332B] bg-[#F7F6F2] dark:bg-[#151614] text-sm outline-none focus:border-[#176B5B]'
+const labelCls = 'text-xs font-medium text-[#6B6E68] dark:text-[#9AA09A] mb-1 block'
+
+function ModelFormModal({ form, setForm, onSubmit, onClose, busy, isEdit }) {
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+  const setCap = (k, v) => setForm((f) => ({ ...f, capabilities: { ...f.capabilities, [k]: v } }))
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.form
+        onSubmit={onSubmit} onClick={(e) => e.stopPropagation()}
+        initial={{ scale: 0.96, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, opacity: 0 }}
+        className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg border border-[#E2DED5] dark:border-[#30332B] bg-white dark:bg-[#1E201C] p-5 shadow-xl"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-medium">{isEdit ? 'Edit model' : 'Add model'}</h2>
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-[#EFECE4] dark:hover:bg-[#262922]">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelCls}>Key</label>
+            <input className={inputCls} value={form.key} required disabled={isEdit}
+              onChange={(e) => set('key', e.target.value)} placeholder="e.g. coder" />
+          </div>
+          <div>
+            <label className={labelCls}>Display name</label>
+            <input className={inputCls} value={form.display_name} required
+              onChange={(e) => set('display_name', e.target.value)} placeholder="Qwen3 4B" />
+          </div>
+          <div className="col-span-2">
+            <label className={labelCls}>Base URL (loopback only)</label>
+            <input className={inputCls} value={form.base_url} required
+              onChange={(e) => set('base_url', e.target.value)} placeholder="http://127.0.0.1:8081" />
+          </div>
+          <div>
+            <label className={labelCls}>Model ID</label>
+            <input className={inputCls} value={form.model_id} required
+              onChange={(e) => set('model_id', e.target.value)} placeholder="qwen3-4b" />
+          </div>
+          <div>
+            <label className={labelCls}>Priority</label>
+            <input className={inputCls} type="number" value={form.priority}
+              onChange={(e) => set('priority', e.target.value)} />
+          </div>
+          <div className="col-span-2">
+            <label className={labelCls}>Model path (optional)</label>
+            <input className={inputCls} value={form.model_path}
+              onChange={(e) => set('model_path', e.target.value)} placeholder="models/qwen3-4b-Q4_K_M.gguf" />
+          </div>
+          <div className="col-span-2">
+            <label className={labelCls}>mmproj path (vision, optional)</label>
+            <input className={inputCls} value={form.mmproj_path}
+              onChange={(e) => set('mmproj_path', e.target.value)} placeholder="models/mmproj-…gguf" />
+          </div>
+          <div>
+            <label className={labelCls}>Timeout (s)</label>
+            <input className={inputCls} type="number" value={form.timeout}
+              onChange={(e) => set('timeout', e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>Max context tokens</label>
+            <input className={inputCls} type="number" value={form.max_context_tokens}
+              onChange={(e) => set('max_context_tokens', e.target.value)} />
+          </div>
+          <div className="col-span-2">
+            <label className={labelCls}>Task types (comma-separated)</label>
+            <input className={inputCls} value={form.task_types}
+              onChange={(e) => set('task_types', e.target.value)} placeholder="code, agentic, multi_step" />
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <label className={labelCls}>Capabilities</label>
+          <div className="flex flex-wrap gap-3">
+            {CAPS.map(({ key, label, Icon }) => (
+              <label key={key} className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
+                <input type="checkbox" checked={!!form.capabilities[key]}
+                  onChange={(e) => setCap(key, e.target.checked)}
+                  className="accent-[#176B5B]" />
+                <Icon size={14} /> {label}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <label className="mt-4 inline-flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" checked={!!form.enabled}
+            onChange={(e) => set('enabled', e.target.checked)} className="accent-[#176B5B]" />
+          Enabled
+        </label>
+
+        <div className="flex justify-end gap-2 mt-5">
+          <button type="button" onClick={onClose}
+            className="px-3 py-2 rounded-md border border-[#E2DED5] dark:border-[#30332B] text-sm hover:bg-[#EFECE4] dark:hover:bg-[#262922]">
+            Cancel
+          </button>
+          <button type="submit" disabled={busy}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-white text-sm font-medium shadow-sm disabled:opacity-50"
+            style={{ backgroundColor: '#176B5B' }}>
+            {busy && <Loader2 size={15} className="animate-spin" />}
+            {isEdit ? 'Save changes' : 'Add model'}
+          </button>
+        </div>
+      </motion.form>
+    </motion.div>
+  )
+}
+
+
+

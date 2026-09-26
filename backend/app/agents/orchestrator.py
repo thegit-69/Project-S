@@ -33,6 +33,7 @@ from app.agents.trace import ExecutionTrace, EventType
 from app.agents.verifier import VerifierRegistry
 from app.models.base import GenerationRequest
 from app.models.registry import ModelRegistry
+from app.models.selector import ModelSelector
 from app.security.audit import AuditService
 from app.tools.registry import ToolRegistry
 
@@ -51,6 +52,7 @@ class OrchestratorResult(BaseModel):
     task: str
     task_type: str = "general"
     selected_model: str
+    selection_reason: str = ""
     provider: str = ""
     execution_status: str
     plan: list[dict[str, Any]] = []
@@ -77,6 +79,9 @@ class AgentOrchestrator:
         tool_registry:     Optional tool registry (None = no tools).
         verifier_registry: Optional verifier registry.
         default_model:     Registry key for the default model.
+        model_selector:    Optional deterministic auto-router. When the caller
+                           does not pin a ``model_name``, it picks the best-fit
+                           model by capability / task type.
     """
 
     def __init__(
@@ -86,12 +91,14 @@ class AgentOrchestrator:
         tool_registry: ToolRegistry | None = None,
         verifier_registry: VerifierRegistry | None = None,
         default_model: str = "general",
+        model_selector: ModelSelector | None = None,
     ) -> None:
         self._registry = registry
         self._audit = audit_service
         self._tool_registry = tool_registry
         self._verifier_registry = verifier_registry or VerifierRegistry()
         self._default_model = default_model
+        self._selector = model_selector or ModelSelector(registry, default_key=default_model)
         self._router = TaskRouter()
         self._planner = (
             TaskPlanner(tool_registry) if tool_registry else None
@@ -133,7 +140,23 @@ class AgentOrchestrator:
         )
 
         # --- 2. Resolve model ---
-        resolved_model_name = model_name or self._default_model
+        # Explicit model_name always wins; otherwise auto-route deterministically.
+        if model_name:
+            resolved_model_name = model_name
+            selection_reason = f"explicit model override → {model_name}"
+        else:
+            selection = self._selector.select(task, route=route, has_images=False)
+            resolved_model_name = selection.model_key
+            selection_reason = selection.reason
+            trace.emit(
+                EventType.MODEL_SELECTED,
+                metadata={
+                    "model": resolved_model_name,
+                    "reason": selection_reason,
+                    "task_type": route.task_type,
+                },
+            )
+
         try:
             provider = self._registry.get(resolved_model_name)
         except KeyError as exc:
@@ -143,6 +166,7 @@ class AgentOrchestrator:
                 error=f"Model selection failed: {exc}",
                 trace=trace,
                 route=route,
+                selection_reason=selection_reason,
             )
 
         provider_type = getattr(provider, "get_provider_type", lambda: "unknown")()
@@ -169,6 +193,7 @@ class AgentOrchestrator:
                     error=f"Planning failed: {exc}",
                     trace=trace,
                     route=route,
+                    selection_reason=selection_reason,
                 )
 
         # --- 4. Execute tools ---
@@ -196,6 +221,7 @@ class AgentOrchestrator:
                     task=task,
                     task_type=route.task_type,
                     selected_model=resolved_model_name,
+                    selection_reason=selection_reason,
                     provider=provider_type,
                     execution_status="error",
                     plan=self._plan_to_dicts(plan),
@@ -219,6 +245,9 @@ class AgentOrchestrator:
                 provider = fallback_provider
                 provider_type = getattr(provider, "get_provider_type", lambda: "dummy")()
                 effective_model_name = f"{fallback_name} (fallback)"
+                selection_reason = (
+                    f"{selection_reason}; primary unavailable, fell back to {fallback_name}"
+                )
             else:
                 return self._error_result(
                     task=task,
@@ -229,6 +258,7 @@ class AgentOrchestrator:
                     route=route,
                     plan=plan,
                     exec_result=exec_result,
+                    selection_reason=selection_reason,
                 )
 
         try:
@@ -249,6 +279,9 @@ class AgentOrchestrator:
                     provider = fallback_provider
                     provider_type = getattr(provider, "get_provider_type", lambda: "dummy")()
                     effective_model_name = f"{fallback_name} (fallback)"
+                    selection_reason = (
+                        f"{selection_reason}; generation failed, fell back to {fallback_name}"
+                    )
                     response = provider.generate(request)
                 else:
                     raise gen_err
@@ -287,6 +320,7 @@ class AgentOrchestrator:
                 task=task,
                 task_type=route.task_type,
                 selected_model=effective_model_name,
+                selection_reason=selection_reason,
                 provider=provider_type,
                 execution_status="success",
                 plan=self._plan_to_dicts(plan) if plan else [],
@@ -320,6 +354,7 @@ class AgentOrchestrator:
                 task=task,
                 task_type=route.task_type,
                 selected_model=effective_model_name,
+                selection_reason=selection_reason,
                 provider=provider_type,
                 execution_status="error",
                 plan=self._plan_to_dicts(plan) if plan else [],
@@ -432,6 +467,7 @@ class AgentOrchestrator:
         provider_type: str = "unknown",
         plan: ExecutionPlan | None = None,
         exec_result: ExecutionResult | None = None,
+        selection_reason: str = "",
     ) -> OrchestratorResult:
         trace.emit(EventType.TASK_FAILED, metadata={"error": error})
         self._audit.record(
@@ -445,6 +481,7 @@ class AgentOrchestrator:
             task=task,
             task_type=route.task_type,
             selected_model=model_name,
+            selection_reason=selection_reason,
             provider=provider_type,
             execution_status="error",
             plan=self._plan_to_dicts(plan) if plan else [],

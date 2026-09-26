@@ -32,6 +32,7 @@ class AgentRunResponse(BaseModel):
     task: str
     task_type: str = "general"
     selected_model: str
+    selection_reason: str = ""
     provider: str
     execution_status: str
     plan: list[dict[str, Any]] = []
@@ -72,6 +73,7 @@ def run_agent(body: AgentRunRequest, request: Request) -> AgentRunResponse:
         task=result.task,
         task_type=result.task_type,
         selected_model=result.selected_model,
+        selection_reason=result.selection_reason,
         provider=result.provider,
         execution_status=result.execution_status,
         plan=result.plan,

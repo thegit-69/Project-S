@@ -8,6 +8,7 @@ Supported task types:
     ``general``       — default for unrecognized tasks
     ``calculation``   — arithmetic / math tasks
     ``file_analysis`` — read or analyze a file
+    ``code``          — programming / coding / agentic tasks
     ``multi_step``    — tasks requiring multiple tools
 """
 
@@ -49,6 +50,16 @@ _MULTI_STEP_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Programming / agentic indicators (routes to a code-capable model).
+_CODE_PATTERN = re.compile(
+    r"\b(code|coding|function|method|refactor|debug|compile|"
+    r"python|javascript|typescript|java|rust|golang|c\+\+|"
+    r"script|program|algorithm|bug|stack ?trace|exception|"
+    r"api|endpoint|class|module|regex|sql|query|json|yaml|"
+    r"unit test|implement|snippet|syntax)\b",
+    re.IGNORECASE,
+)
+
 
 class TaskRouter:
     """Deterministic keyword-based task router.
@@ -72,6 +83,7 @@ class TaskRouter:
         has_calc = bool(_CALC_PATTERN.search(task))
         has_file = bool(_FILE_PATTERN.search(task))
         has_connector = bool(_MULTI_STEP_PATTERN.search(task))
+        has_code = bool(_CODE_PATTERN.search(task))
 
         # Multi-step: both calculation and file indicators, or an
         # explicit connector phrase with at least one indicator.
@@ -92,6 +104,16 @@ class TaskRouter:
                 task_type="multi_step",
                 confidence=0.9,
                 tools_hint=tools,
+            )
+
+        # Coding / agentic tasks — routed to a code-capable model. Checked
+        # before single calc/file so "write a python function" wins over a
+        # stray file keyword, but after multi_step so combined tasks stand.
+        if has_code:
+            return RouteResult(
+                task_type="code",
+                confidence=1.0,
+                tools_hint=["code_tool"],
             )
 
         if has_calc:

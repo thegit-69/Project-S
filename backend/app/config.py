@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     llm_timeout: int = 120
     llm_enabled: bool = True
 
+    # --- Model catalog (multi-model registry source of truth) ---
+    model_catalog_path: Path = Path("config/models.json")
+
     # --- Knowledge Base & RAG ---
     chunk_size: int = 800
     chunk_overlap: int = 100

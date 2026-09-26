@@ -22,8 +22,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.models.registry import ModelRegistry
+from app.models.catalog import ModelCatalog
+from app.models.selector import ModelSelector
 from app.models.local import DummyLocalModel
-from app.models.llama_cpp_provider import LlamaCppProvider
 from app.security.audit import AuditService
 from app.security.network_monitor import NetworkMonitor
 from app.tools.registry import ToolRegistry
@@ -116,6 +117,37 @@ def create_app() -> FastAPI:
 
     # Per-app-instance singletons
     model_registry = ModelRegistry()
+
+    # Model catalog — file-backed source of truth for the multi-model registry.
+    # If the file is missing/empty, seed it from the SAW_LLM_* defaults so the
+    # backend still boots with one working model.
+    model_catalog = ModelCatalog(settings.model_catalog_path)
+    model_catalog.load()
+    if not model_catalog.list():
+        from app.models.catalog import ModelDefinition, ModelCapabilitiesSpec
+
+        logger.info(
+            "Model catalog empty/missing at %s — seeding from SAW_LLM_* defaults.",
+            settings.model_catalog_path,
+        )
+        model_catalog.upsert(
+            ModelDefinition(
+                key="general",
+                display_name="Local Model",
+                base_url=str(settings.llm_base_url),
+                model_id=settings.llm_model_id,
+                model_path=settings.llm_model_path,
+                mmproj_path=settings.llm_mmproj_path or None,
+                timeout=settings.llm_timeout,
+                capabilities=ModelCapabilitiesSpec(text=True, vision=True),
+                task_types=["general", "file_analysis", "vision"],
+                priority=10,
+                enabled=settings.llm_enabled,
+            )
+        )
+
+    model_selector = ModelSelector(model_registry, default_key="general")
+
     audit_service = AuditService(log_file=settings.audit_log_file)
     tool_registry = _build_tool_registry(settings)
     verifier_registry = _build_verifier_registry()
@@ -127,10 +159,8 @@ def create_app() -> FastAPI:
     )
     network_monitor = NetworkMonitor(
         configured_endpoints={
-            "llm_server": str(settings.llm_base_url),
+            f"llm_{defn.key}": defn.base_url for defn in model_catalog.list()
         }
-        if settings.llm_enabled
-        else {}
     )
 
     # Knowledge subsystem components with persistence
@@ -176,37 +206,28 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         """Startup / shutdown lifecycle hook."""
-        if settings.llm_enabled:
-            logger.info(
-                "LLM enabled — registering LlamaCppProvider "
-                "(base_url=%s, model_id=%s, model_path=%s)",
-                settings.llm_base_url,
-                settings.llm_model_id,
-                settings.llm_model_path,
-            )
-            provider = LlamaCppProvider(
-                base_url=settings.llm_base_url,
-                model_id=settings.llm_model_id,
-                timeout=settings.llm_timeout,
-                model_path=settings.llm_model_path,
-            )
-            model_registry.register("general", provider)
-            model_registry.register("local", DummyLocalModel())
-        else:
-            logger.info(
-                "LLM disabled (SAW_LLM_ENABLED=false) — "
-                "registering DummyLocalModel for development/testing."
-            )
-            model_registry.register("general", DummyLocalModel())
-            model_registry.register("local", DummyLocalModel())
+        # Build the live registry from the catalog (multi-model, hot-reloadable).
+        registered = model_registry.reload_from_catalog(model_catalog)
+        logger.info("Registered models from catalog: %s", registered)
 
-        # Wire up the orchestrator with all registries.
+        # Always keep a "local" dummy provider as a last-resort fallback so the
+        # workbench stays responsive when no llama.cpp server is running. It is
+        # registered outside the catalog, so hot-reloads preserve it.
+        model_registry.register("local", DummyLocalModel(), replace=True)
+
+        # When no real catalog model registered (e.g. all endpoints unbuildable),
+        # ensure a usable "general" key exists for the RAG service and default.
+        if not model_registry.has("general"):
+            model_registry.register("general", DummyLocalModel(), replace=True)
+
+        # Wire up the orchestrator with all registries + the auto-router.
         orchestrator = AgentOrchestrator(
             registry=model_registry,
             audit_service=audit_service,
             tool_registry=tool_registry,
             verifier_registry=verifier_registry,
             default_model="general",
+            model_selector=model_selector,
         )
 
         # Wire up the RAG service (needs the model provider)
@@ -220,6 +241,8 @@ def create_app() -> FastAPI:
 
         # Store on app.state for dependency injection in routes
         app.state.registry = model_registry
+        app.state.catalog = model_catalog
+        app.state.selector = model_selector
         app.state.tool_registry = tool_registry
         app.state.orchestrator = orchestrator
         app.state.settings = settings

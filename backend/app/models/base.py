@@ -42,6 +42,7 @@ class ModelCapabilities(BaseModel):
     supports_text: bool = True
     supports_vision: bool = False
     supports_code: bool = True
+    supports_agentic: bool = False
     max_context_tokens: int = 4096
 
 

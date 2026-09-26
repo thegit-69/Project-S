@@ -69,6 +69,8 @@ class LlamaCppProvider(ModelProvider):
         timeout: int | float = 120,
         model_path: str | None = None,
         supports_vision: bool = False,
+        supports_code: bool = True,
+        supports_agentic: bool = False,
         max_context_tokens: int = 8192,
     ) -> None:
         validate_local_endpoint(base_url)
@@ -77,6 +79,8 @@ class LlamaCppProvider(ModelProvider):
         self._timeout = float(timeout)
         self._model_path = model_path
         self._supports_vision = supports_vision
+        self._supports_code = supports_code
+        self._supports_agentic = supports_agentic
         self._max_context_tokens = max_context_tokens
 
     def get_name(self) -> str:
@@ -98,7 +102,8 @@ class LlamaCppProvider(ModelProvider):
         return ModelCapabilities(
             supports_text=True,
             supports_vision=self._supports_vision,
-            supports_code=True,
+            supports_code=self._supports_code,
+            supports_agentic=self._supports_agentic,
             max_context_tokens=self._max_context_tokens,
         )
 

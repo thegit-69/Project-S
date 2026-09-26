@@ -37,6 +37,133 @@ export async function getModelsHealth() {
   }
 }
 
+// --- Model catalog (multi-model management + hot-reload) ---
+
+const MOCK_CATALOG = {
+  catalog_path: 'config/models.json',
+  models: [
+    {
+      key: 'general',
+      display_name: 'Gemma 3 4B',
+      provider_type: 'llama_cpp',
+      base_url: 'http://127.0.0.1:8080',
+      model_id: 'gemma-3-4b-it',
+      model_path: 'models/gemma-3-4b-it-Q4_K_M.gguf',
+      mmproj_path: 'models/mmproj-gemma-3-4b-it-f16.gguf',
+      timeout: 120,
+      max_context_tokens: 8192,
+      capabilities: { text: true, vision: true, code: false, agentic: false },
+      task_types: ['general', 'file_analysis', 'vision'],
+      routes: ['general', 'file_analysis', 'vision'],
+      priority: 10,
+      enabled: true,
+      status: 'available',
+    },
+    {
+      key: 'coder',
+      display_name: 'Qwen3 4B',
+      provider_type: 'llama_cpp',
+      base_url: 'http://127.0.0.1:8081',
+      model_id: 'qwen3-4b',
+      model_path: 'models/qwen3-4b-Q4_K_M.gguf',
+      mmproj_path: null,
+      timeout: 120,
+      max_context_tokens: 8192,
+      capabilities: { text: true, vision: false, code: true, agentic: true },
+      task_types: ['code', 'agentic', 'multi_step', 'calculation'],
+      routes: ['code', 'agentic', 'multi_step', 'calculation'],
+      priority: 20,
+      enabled: true,
+      status: 'available',
+    },
+  ],
+};
+
+/**
+ * Fetch the full model catalog with live health + routing info.
+ * Endpoint: GET /models/catalog
+ */
+export async function listModelCatalog() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/models/catalog`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return await res.json();
+  } catch (err) {
+    console.warn('[API] listModelCatalog failed, using MOCK fallback for demo', err);
+    return structuredClone(MOCK_CATALOG);
+  }
+}
+
+/**
+ * Add a new model to the catalog (loopback-enforced) and hot-reload.
+ * Endpoint: POST /models/catalog
+ */
+export async function createModelDefinition(definition) {
+  const res = await fetch(`${API_BASE_URL}/models/catalog`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(definition),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Add model failed (${res.status})`);
+  }
+  return await res.json();
+}
+
+/**
+ * Edit an existing model definition (enabled, priority, capabilities…) + hot-reload.
+ * Endpoint: PUT /models/catalog/{key}
+ */
+export async function updateModelDefinition(key, definition) {
+  const res = await fetch(`${API_BASE_URL}/models/catalog/${encodeURIComponent(key)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(definition),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Update model failed (${res.status})`);
+  }
+  return await res.json();
+}
+
+/**
+ * Remove a model from the catalog and hot-reload.
+ * Endpoint: DELETE /models/catalog/{key}
+ */
+export async function deleteModelDefinition(key) {
+  const res = await fetch(`${API_BASE_URL}/models/catalog/${encodeURIComponent(key)}`, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Delete model failed (${res.status})`);
+  }
+  return await res.json();
+}
+
+/**
+ * Re-read the catalog file from disk and rebuild the registry (no restart).
+ * Endpoint: POST /models/reload
+ */
+export async function reloadModels() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/models/reload`, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return await res.json();
+  } catch (err) {
+    console.warn('[API] reloadModels failed (mock ok for demo)', err);
+    return { status: 'reloaded', registered: MOCK_CATALOG.models.map((m) => m.key) };
+  }
+}
+
 /**
  * Run a task through the Sovereign Agent pipeline (routing, planning, tools, verification, LLM).
  * Endpoint: POST /agent/run
@@ -204,6 +331,68 @@ export async function uploadAndIngestDocument(file) {
 }
 
 /**
+ * List all documents currently indexed in the local knowledge base.
+ * Endpoint: GET /knowledge/documents
+ */
+export async function listKnowledgeDocuments() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/knowledge/documents`, {
+      headers: { 'Accept': 'application/json' },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return await res.json();
+  } catch (err) {
+    console.warn('[API] listKnowledgeDocuments failed, using MOCK fallback for demonstration', err);
+    return [
+      {
+        document_id: 'mock-doc-1',
+        filename: 'Maintenance_SOP_Rev4.pdf',
+        file_type: 'pdf',
+        chunk_count: 128,
+        ingestion_status: 'indexed',
+        ingested_at: new Date(Date.now() - 86400000).toISOString(),
+      },
+      {
+        document_id: 'mock-doc-2',
+        filename: 'Inspection_Report_Q3.pdf',
+        file_type: 'pdf',
+        chunk_count: 64,
+        ingestion_status: 'indexed',
+        ingested_at: new Date(Date.now() - 3600000).toISOString(),
+      },
+      {
+        document_id: 'mock-doc-3',
+        filename: 'Safety_Manual_Vol2.docx',
+        file_type: 'docx',
+        chunk_count: 210,
+        ingestion_status: 'indexed',
+        ingested_at: new Date(Date.now() - 7200000).toISOString(),
+      },
+    ];
+  }
+}
+
+/**
+ * Remove a document (and all its chunks) from the local knowledge base.
+ * Endpoint: DELETE /knowledge/documents/{document_id}
+ */
+export async function deleteKnowledgeDocument(documentId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/knowledge/documents/${documentId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Delete failed (${res.status})`);
+    }
+    return await res.json();
+  } catch (err) {
+    console.warn('[API] deleteKnowledgeDocument failed (mock ok for demo)', err);
+    return { status: 'deleted', document_id: documentId };
+  }
+}
+
+/**
  * Perform semantic search and RAG synthesis against local knowledge base.
  * Endpoint: POST /knowledge/query
  */
@@ -361,6 +550,7 @@ export async function sendChatMessage(prompt, options = {}) {
       text: agentRes.result,
       model: agentRes.selected_model || 'gemma-3-4b-it',
       taskType: agentRes.task_type,
+      selectionReason: agentRes.selection_reason || '',
       plan: agentRes.plan,
       toolCalls: agentRes.tool_calls,
       verification: agentRes.verification,

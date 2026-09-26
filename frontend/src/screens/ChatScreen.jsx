@@ -306,12 +306,12 @@ export default function ChatScreen({ onNavigate }) {
         setAttachedFile((prev) =>
           prev && prev.name === file.name
             ? {
-                ...prev,
-                status: 'ready',
-                documentId: res.document_id,
-                chunks: res.chunks,
-                pageCount: res.page_count,
-              }
+              ...prev,
+              status: 'ready',
+              documentId: res.document_id,
+              chunks: res.chunks,
+              pageCount: res.page_count,
+            }
             : prev
         );
       } catch (err) {
@@ -319,10 +319,10 @@ export default function ChatScreen({ onNavigate }) {
         setAttachedFile((prev) =>
           prev && prev.name === file.name
             ? {
-                ...prev,
-                status: 'error',
-                error: err.message || 'Ingestion failed',
-              }
+              ...prev,
+              status: 'error',
+              error: err.message || 'Ingestion failed',
+            }
             : prev
         );
       }
@@ -422,8 +422,8 @@ export default function ChatScreen({ onNavigate }) {
       attachmentToUse?.type === 'image'
         ? 'Analyzing image with local Gemma 3 vision...'
         : attachmentToUse?.type === 'document'
-        ? 'Searching & citing document in local enclave...'
-        : 'Routing task through agent pipeline...'
+          ? 'Searching & citing document in local enclave...'
+          : 'Routing task through agent pipeline...'
     );
 
     if (!customAttachment) {
@@ -462,6 +462,7 @@ export default function ChatScreen({ onNavigate }) {
         text: response.text,
         model: response.model || 'gemma-3-4b-it',
         taskType: response.taskType,
+        selectionReason: response.selectionReason,
         plan: response.plan,
         toolCalls: response.toolCalls,
         verification: response.verification,
@@ -620,7 +621,7 @@ export default function ChatScreen({ onNavigate }) {
                             />
                           )}
                           <div className="p-2 bg-[#E8E6DE] dark:bg-[#252823] text-[11px] font-mono text-[#77766F] dark:text-[#A6A69D] flex items-center justify-between">
-                            <span className="truncate max-w-[190px]">ðŸ“· {m.attachment.name}</span>
+                            <span className="truncate max-w-[190px]">{m.attachment.name}</span>
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#176B5B]/10 text-[#176B5B] dark:text-[#38A18C] font-semibold">
                               Vision Input
                             </span>
@@ -667,6 +668,14 @@ export default function ChatScreen({ onNavigate }) {
                     {m.model && (
                       <span className="font-mono text-[9.5px] text-[#77766F] dark:text-[#A6A69D] bg-[#F0EEE8] dark:bg-[#242620] px-1.5 py-0.2 rounded">
                         {m.model}
+                      </span>
+                    )}
+                    {m.selectionReason && (
+                      <span
+                        className="text-[9.5px] text-[#176B5B] dark:text-[#38A18C] italic"
+                        title={m.selectionReason}
+                      >
+                        · {m.selectionReason}
                       </span>
                     )}
                     {m.mode && (
@@ -893,8 +902,8 @@ export default function ChatScreen({ onNavigate }) {
                   isSending
                     ? 'Generating local inference...'
                     : attachedFile
-                    ? `Ask a question about ${attachedFile.name}...`
-                    : t.input_placeholder
+                      ? `Ask a question about ${attachedFile.name}...`
+                      : t.input_placeholder
                 }
                 type="text"
               />
@@ -957,17 +966,16 @@ export default function ChatScreen({ onNavigate }) {
 
               <div className="flex items-center space-x-3">
                 <span className="font-mono text-[10.5px] text-[#77766F] dark:text-[#A6A69D] select-none">
-                  âŽ <span>{t.btn_return}</span>
+                  {/* <span>{t.btn_return}</span> */}
                 </span>
                 <button
                   type="button"
                   onClick={() => handleSendMessage()}
                   disabled={(!inputValue.trim() && !attachedFile) || isSending}
-                  className={`w-7 h-7 rounded-[6px] flex items-center justify-center active:scale-95 transition-all shadow-sm ${
-                    (!inputValue.trim() && !attachedFile) || isSending
-                      ? 'bg-[#176B5B]/40 text-white cursor-not-allowed'
-                      : 'bg-[#176B5B] text-white hover:bg-[#13584B]'
-                  }`}
+                  className={`w-7 h-7 rounded-[6px] flex items-center justify-center active:scale-95 transition-all shadow-sm ${(!inputValue.trim() && !attachedFile) || isSending
+                    ? 'bg-[#176B5B]/40 text-white cursor-not-allowed'
+                    : 'bg-[#176B5B] text-white hover:bg-[#13584B]'
+                    }`}
                   title="Send query"
                 >
                   {isSending ? (

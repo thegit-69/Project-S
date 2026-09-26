@@ -1,884 +1,460 @@
-﻿import { useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  FileText, Plus, Trash2, Check, Loader2, Sparkles, ArrowUp,
+  ScrollText, ListChecks, GraduationCap, Network, Clock, Table2,
+  HelpCircle, ShieldCheck, X, Copy, Database, BookOpen, UploadCloud,
+} from 'lucide-react'
+import {
+  listKnowledgeDocuments,
+  deleteKnowledgeDocument,
+  uploadAndIngestDocument,
+  queryKnowledge,
+} from '../services/api.js'
+import MarkdownMessage from '../components/MarkdownMessage.jsx'
+import NotebookLMCitations from '../components/NotebookLMCitations.jsx'
+import CitationDrawer from '../components/CitationDrawer.jsx'
 
-export default function KnowledgeScreen({ onNavigate }) {
-  const rootRef = useRef(null);
-  const navRef = useRef(onNavigate);
-  navRef.current = onNavigate;
+// Grounded generation shortcuts shown in the Studio panel. Each sends a
+// templated prompt through the local RAG pipeline and saves the result.
+const STUDIO_ACTIONS = [
+  { key: 'summary', label: 'Summary', icon: ScrollText, prompt: 'Write a concise executive summary of the selected sources. Ground every statement in the documents.' },
+  { key: 'findings', label: 'Key Findings', icon: ListChecks, prompt: 'List the key findings, anomalies and important data points from the selected sources as bullet points with citations.' },
+  { key: 'briefing', label: 'Approval Note', icon: FileText, prompt: 'Draft a formal approval / briefing note based strictly on the selected sources, including background, findings and a recommendation.' },
+  { key: 'faq', label: 'Study Guide', icon: GraduationCap, prompt: 'Create a study guide with the most important questions and answers derived from the selected sources.' },
+  { key: 'mindmap', label: 'Mind Map', icon: Network, prompt: 'Produce a hierarchical outline / mind map of the main topics and sub-topics covered by the selected sources.' },
+  { key: 'timeline', label: 'Timeline', icon: Clock, prompt: 'Extract a chronological timeline of events, dates and milestones mentioned in the selected sources.' },
+  { key: 'table', label: 'Data Table', icon: Table2, prompt: 'Extract the key structured data from the selected sources and present it as a markdown table.' },
+  { key: 'quiz', label: 'Quiz', icon: HelpCircle, prompt: 'Generate a short quiz (5 questions with answers) that tests understanding of the selected sources.' },
+]
 
-  useEffect(() => {
-    const root = rootRef.current;
+const SUGGESTED = [
+  'What are the shutdown requirements?',
+  'Summarize the inspection findings.',
+  'List any safety risks mentioned.',
+]
 
-    (function () {
-      // 1. Translations dictionary for EN, HI, KN
-      const i18nData = {
-        en: {
-          "nav.chat": "Chat",
-          "nav.knowledge": "Knowledge",
-          "nav.code": "Code",
-          "nav.models": "Models",
-          "nav.logs": "Logs",
-          "status.offline": "OFFLINE",
-          "settings.title": "Workspace Preferences",
-          "settings.theme": "Appearance",
-          "settings.language": "Language",
-          "theme.light": "Light",
-          "theme.dark": "Dark",
-          "theme.system": "Auto",
-          "sidebar.sources": "Sources",
-          "sidebar.add": "+ Add",
-          "sidebar.enclave": "Local Enclave",
-          "sidebar.enclave_sub":
-            "4 sources indexed locally Â· Enclave memory active",
-          "workspace.title": "Knowledge",
-          "workspace.grounding": "Grounding",
-          "workspace.source_count": "4 sources",
-          "workspace.strict_btn": "Grounding: Strict",
-          "synthesis.query_heading": "What are the shutdown requirements?",
-          "synthesis.badge": "VAULT SYNTHESIS",
-          "synthesis.deterministic": "Deterministic verification: 99.8%",
-          "synthesis.lead":
-            "The maintenance procedure mandates a strict multi-staged physical isolation protocol prior to cold-loop inspection. Cross-document grounding references three compulsory gates:",
-          "point1.title": "Primary Loop Depressurization",
-          "point1.body":
-            "Isolation valves IV-102 through IV-108 must be mechanically dogged and padlock-tagged. Differential telemetry must confirm zero bar (gauge) across bypass manifold B-7 before breaking flange seals.",
-          "point2.title": "Residual Thermal Dissipation Window",
-          "point2.body":
-            "Auxiliary cooling pumps must remain locked on forced-circulation bypass until all primary core thermocouple clusters register below 42Â°C for a continuous, uninterrupted 60-minute interval.",
-          "point3.title": "Secondary Containment Atmospheric Assurance",
-          "point3.body":
-            "Atmospheric sensor verification for volatile fluorocarbons must be logged at 15-minute intervals across all four facility quadrants. Manual technician hatch interlocks will refuse authorization until scrubbers complete two volume exchanges.",
-          "synthesis.guarantee":
-            "Grounded purely against local air-gapped cryptographic volumes. Zero hallucination tolerance.",
-          "synthesis.audit": "Audit Log",
-          "prompt.sugg1": '"What are the shutdown requirements?"',
-          "prompt.sugg2": '"Find previous corrosion findings."',
-          "prompt.sugg3": '"Summarize the inspection report."',
-          "composer.placeholder": "Ask your private knowledge base...",
-          "drawer.header_sub": "Page 18 of 64 Â· Section 4.2 Depressurization",
-          "drawer.citation_match": "Exact Citation Match",
-          "drawer.target_badge": "Grounding Target Â· Excerpt #1",
-          "drawer.snippet_body":
-            '"During scheduled or emergency cycle shutdowns, isolation valves IV-102 through IV-108 shall be mechanically dogged and padlock-tagged. Differential telemetry must confirm zero bar (gauge) across bypass manifold B-7 before breaking flange seals..."',
-          "drawer.preview": "PAGE PREVIEW (18)",
-          "drawer.prev": "â† Prev",
-          "drawer.next": "Next â†’",
-          "drawer.jump": "Jump:",
-          "footer.kernel": "VAULT KERNEL v4.19-AIRGAP",
-          "footer.egress": "ZERO-EGRESS VERIFIED",
-        },
-        hi: {
-          "nav.chat": "à¤šà¥ˆà¤Ÿ",
-          "nav.knowledge": "à¤œà¥à¤žà¤¾à¤¨",
-          "nav.code": "à¤•à¥‹à¤¡",
-          "nav.models": "à¤®à¥‰à¤¡à¤²",
-          "nav.logs": "à¤²à¥‰à¤—à¥à¤¸",
-          "status.offline": "à¤‘à¤«à¤²à¤¾à¤‡à¤¨",
-          "settings.title": "à¤•à¤¾à¤°à¥à¤¯à¤•à¥à¤·à¥‡à¤¤à¥à¤° à¤ªà¥à¤°à¤¾à¤¥à¤®à¤¿à¤•à¤¤à¤¾à¤à¤‚",
-          "settings.theme": "à¤¥à¥€à¤® (à¤°à¥‚à¤ª)",
-          "settings.language": "à¤­à¤¾à¤·à¤¾ (Language)",
-          "theme.light": "à¤²à¤¾à¤‡à¤Ÿ",
-          "theme.dark": "à¤¡à¤¾à¤°à¥à¤•",
-          "theme.system": "à¤¸à¤¿à¤¸à¥à¤Ÿà¤®",
-          "sidebar.sources": "à¤¸à¥à¤°à¥‹à¤¤",
-          "sidebar.add": "+ à¤œà¥‹à¤¡à¤¼à¥‡à¤‚",
-          "sidebar.enclave": "à¤²à¥‹à¤•à¤² à¤à¤¨à¥à¤•à¥à¤²à¥‡à¤µ",
-          "sidebar.enclave_sub":
-            "4 à¤¸à¥à¤¥à¤¾à¤¨à¥€à¤¯ à¤¸à¥à¤°à¥‹à¤¤ à¤…à¤¨à¥à¤•à¥à¤°à¤®à¤¿à¤¤ Â· à¤à¤¨à¥à¤•à¥à¤²à¥‡à¤µ à¤®à¥‡à¤®à¥‹à¤°à¥€ à¤¸à¤•à¥à¤°à¤¿à¤¯",
-          "workspace.title": "à¤œà¥à¤žà¤¾à¤¨",
-          "workspace.grounding": "à¤—à¥à¤°à¤¾à¤‰à¤‚à¤¡à¤¿à¤‚à¤—",
-          "workspace.source_count": "4 à¤¸à¥à¤°à¥‹à¤¤",
-          "workspace.strict_btn": "à¤—à¥à¤°à¤¾à¤‰à¤‚à¤¡à¤¿à¤‚à¤—: à¤¸à¤–à¥à¤¤",
-          "synthesis.query_heading": "à¤¶à¤Ÿà¤¡à¤¾à¤‰à¤¨ à¤•à¥€ à¤•à¥à¤¯à¤¾ à¤†à¤µà¤¶à¥à¤¯à¤•à¤¤à¤¾à¤à¤‚ à¤¹à¥ˆà¤‚?",
-          "synthesis.badge": "à¤µà¥‰à¤²à¥à¤Ÿ à¤¸à¤‚à¤¶à¥à¤²à¥‡à¤·à¤£",
-          "synthesis.deterministic": "à¤¨à¤¿à¤¯à¤¤ à¤¸à¤¤à¥à¤¯à¤¾à¤ªà¤¨: 99.8%",
-          "synthesis.lead":
-            "à¤°à¤–à¤°à¤–à¤¾à¤µ à¤ªà¥à¤°à¤•à¥à¤°à¤¿à¤¯à¤¾ à¤•à¥‹à¤²à¥à¤¡-à¤²à¥‚à¤ª à¤¨à¤¿à¤°à¥€à¤•à¥à¤·à¤£ à¤¸à¥‡ à¤ªà¤¹à¤²à¥‡ à¤à¤• à¤¸à¤–à¥à¤¤ à¤¬à¤¹à¥-à¤¸à¥à¤¤à¤°à¥€à¤¯ à¤­à¥Œà¤¤à¤¿à¤• à¤…à¤²à¤—à¤¾à¤µ à¤ªà¥à¤°à¥‹à¤Ÿà¥‹à¤•à¥‰à¤² à¤…à¤¨à¤¿à¤µà¤¾à¤°à¥à¤¯ à¤•à¤°à¤¤à¥€ à¤¹à¥ˆà¥¤ à¤•à¥à¤°à¥‰à¤¸-à¤¦à¤¸à¥à¤¤à¤¾à¤µà¥‡à¤œà¤¼ à¤—à¥à¤°à¤¾à¤‰à¤‚à¤¡à¤¿à¤‚à¤— à¤¤à¥€à¤¨ à¤…à¤¨à¤¿à¤µà¤¾à¤°à¥à¤¯ à¤¦à¥à¤µà¤¾à¤°à¥‹à¤‚ à¤•à¥‹ à¤¸à¤‚à¤¦à¤°à¥à¤­à¤¿à¤¤ à¤•à¤°à¤¤à¤¾ à¤¹à¥ˆ:",
-          "point1.title": "à¤ªà¥à¤°à¤¾à¤¥à¤®à¤¿à¤• à¤²à¥‚à¤ª à¤¡à¥€à¤ªà¥à¤°à¥‡à¤¸à¤°à¤¾à¤‡à¤œà¥‡à¤¶à¤¨",
-          "point1.body":
-            "à¤†à¤‡à¤¸à¥‹à¤²à¥‡à¤¶à¤¨ à¤µà¤¾à¤²à¥à¤µ IV-102 à¤¸à¥‡ IV-108 à¤•à¥‹ à¤¯à¤¾à¤‚à¤¤à¥à¤°à¤¿à¤• à¤°à¥‚à¤ª à¤¸à¥‡ à¤²à¥‰à¤• à¤”à¤° à¤ªà¥ˆà¤¡à¤²à¥‰à¤•-à¤Ÿà¥ˆà¤— à¤•à¤¿à¤¯à¤¾ à¤œà¤¾à¤¨à¤¾ à¤šà¤¾à¤¹à¤¿à¤à¥¤ à¤¨à¤¿à¤•à¤²à¤¾ à¤¹à¥à¤† à¤•à¤¿à¤¨à¤¾à¤°à¤¾ à¤¸à¥€à¤² à¤¤à¥‹à¤¡à¤¼à¤¨à¥‡ à¤¸à¥‡ à¤ªà¤¹à¤²à¥‡ à¤¬à¤¾à¤ˆà¤ªà¤¾à¤¸ à¤®à¥ˆà¤¨à¤¿à¤«à¥‹à¤²à¥à¤¡ B-7 à¤ªà¤° à¤µà¤¿à¤­à¥‡à¤¦à¤• à¤Ÿà¥‡à¤²à¥€à¤®à¥‡à¤Ÿà¥à¤°à¥€ à¤¦à¥à¤µà¤¾à¤°à¤¾ à¤¶à¥‚à¤¨à¥à¤¯ à¤¬à¤¾à¤° (à¤—à¥‡à¤œ) à¤¸à¥à¤¨à¤¿à¤¶à¥à¤šà¤¿à¤¤ à¤•à¤¿à¤¯à¤¾ à¤œà¤¾à¤¨à¤¾ à¤…à¤¨à¤¿à¤µà¤¾à¤°à¥à¤¯ à¤¹à¥ˆà¥¤",
-          "point2.title": "à¤…à¤µà¤¶à¤¿à¤·à¥à¤Ÿ à¤¥à¤°à¥à¤®à¤² à¤…à¤ªà¤µà¥à¤¯à¤¯ à¤–à¤¿à¤¡à¤¼à¤•à¥€",
-          "point2.body":
-            "à¤¸à¤¹à¤¾à¤¯à¤• à¤¶à¥€à¤¤à¤²à¤¨ à¤ªà¤‚à¤ª à¤¤à¤¬ à¤¤à¤• à¤®à¤œà¤¬à¥‚à¤° à¤ªà¤°à¤¿à¤¸à¤‚à¤šà¤°à¤£ à¤¬à¤¾à¤ˆà¤ªà¤¾à¤¸ à¤ªà¤° à¤¬à¤‚à¤¦ à¤°à¤¹à¤¨à¥‡ à¤šà¤¾à¤¹à¤¿à¤ à¤œà¤¬ à¤¤à¤• à¤•à¤¿ à¤¸à¤­à¥€ à¤ªà¥à¤°à¤¾à¤¥à¤®à¤¿à¤• à¤•à¥‹à¤° à¤¥à¤°à¥à¤®à¥‹à¤•à¤ªà¤² à¤•à¥à¤²à¤¸à¥à¤Ÿà¤° à¤²à¤—à¤¾à¤¤à¤¾à¤° 60 à¤®à¤¿à¤¨à¤Ÿ à¤•à¥‡ à¤²à¤¿à¤ 42Â°C à¤¸à¥‡ à¤¨à¥€à¤šà¥‡ à¤¦à¤°à¥à¤œ à¤¨ à¤¹à¥‹à¤‚à¥¤",
-          "point3.title": "à¤¦à¥à¤µà¤¿à¤¤à¥€à¤¯à¤• à¤¨à¤¿à¤¯à¤‚à¤¤à¥à¤°à¤£ à¤µà¤¾à¤¯à¥à¤®à¤‚à¤¡à¤²à¥€à¤¯ à¤†à¤¶à¥à¤µà¤¾à¤¸à¤¨",
-          "point3.body":
-            "à¤µà¤¾à¤·à¥à¤ªà¤¶à¥€à¤² à¤«à¥à¤²à¥‹à¤°à¥‹à¤•à¤¾à¤°à¥à¤¬à¤¨ à¤•à¥‡ à¤²à¤¿à¤ à¤µà¤¾à¤¯à¥à¤®à¤‚à¤¡à¤²à¥€à¤¯ à¤¸à¥‡à¤‚à¤¸à¤° à¤¸à¤¤à¥à¤¯à¤¾à¤ªà¤¨ à¤•à¥‹ à¤¸à¤­à¥€ à¤šà¤¾à¤° à¤¸à¥à¤µà¤¿à¤§à¤¾ à¤•à¥à¤·à¥‡à¤¤à¥à¤°à¥‹à¤‚ à¤®à¥‡à¤‚ 15 à¤®à¤¿à¤¨à¤Ÿ à¤•à¥‡ à¤…à¤‚à¤¤à¤°à¤¾à¤² à¤ªà¤° à¤²à¥‰à¤— à¤•à¤¿à¤¯à¤¾ à¤œà¤¾à¤¨à¤¾ à¤šà¤¾à¤¹à¤¿à¤à¥¤ à¤œà¤¬ à¤¤à¤• à¤¸à¥à¤•à¥à¤°à¤¬à¤° à¤¦à¥‹ à¤µà¥‰à¤²à¥à¤¯à¥‚à¤® à¤à¤•à¥à¤¸à¤šà¥‡à¤‚à¤œ à¤ªà¥‚à¤°à¤¾ à¤¨à¤¹à¥€à¤‚ à¤•à¤° à¤²à¥‡à¤¤à¥‡, à¤¤à¤¬ à¤¤à¤• à¤®à¥ˆà¤¨à¥à¤…à¤² à¤¤à¤•à¤¨à¥€à¤¶à¤¿à¤¯à¤¨ à¤¹à¥ˆà¤š à¤‡à¤‚à¤Ÿà¤°à¤²à¥‰à¤•à¥à¤¸ à¤ªà¥à¤°à¤¾à¤§à¤¿à¤•à¤°à¤£ à¤…à¤¸à¥à¤µà¥€à¤•à¤¾à¤° à¤•à¤°à¥‡à¤‚à¤—à¥‡à¥¤",
-          "synthesis.guarantee":
-            "à¤ªà¥‚à¤°à¥€ à¤¤à¤°à¤¹ à¤¸à¥‡ à¤¸à¥à¤¥à¤¾à¤¨à¥€à¤¯ à¤à¤¯à¤°-à¤—à¥ˆà¤ªà¥à¤¡ à¤•à¥à¤°à¤¿à¤ªà¥à¤Ÿà¥‹à¤—à¥à¤°à¤¾à¤«à¤¼à¤¿à¤• à¤µà¥‰à¤²à¥à¤¯à¥‚à¤® à¤ªà¤° à¤†à¤§à¤¾à¤°à¤¿à¤¤à¥¤ à¤¶à¥‚à¤¨à¥à¤¯ à¤­à¥à¤°à¤® à¤¸à¤¹à¤¿à¤·à¥à¤£à¥à¤¤à¤¾à¥¤",
-          "synthesis.audit": "à¤‘à¤¡à¤¿à¤Ÿ à¤²à¥‰à¤—",
-          "prompt.sugg1": '"à¤¶à¤Ÿà¤¡à¤¾à¤‰à¤¨ à¤•à¥€ à¤•à¥à¤¯à¤¾ à¤†à¤µà¤¶à¥à¤¯à¤•à¤¤à¤¾à¤à¤‚ à¤¹à¥ˆà¤‚?"',
-          "prompt.sugg2": '"à¤ªà¤¿à¤›à¤²à¥‡ à¤œà¤‚à¤— à¤•à¥‡ à¤¨à¤¿à¤·à¥à¤•à¤°à¥à¤· à¤–à¥‹à¤œà¥‡à¤‚à¥¤"',
-          "prompt.sugg3": '"à¤¨à¤¿à¤°à¥€à¤•à¥à¤·à¤£ à¤°à¤¿à¤ªà¥‹à¤°à¥à¤Ÿ à¤•à¤¾ à¤¸à¤¾à¤°à¤¾à¤‚à¤¶ à¤¦à¥‡à¤‚à¥¤"',
-          "composer.placeholder": "à¤…à¤ªà¤¨à¥‡ à¤¨à¤¿à¤œà¥€ à¤œà¥à¤žà¤¾à¤¨ à¤•à¥‹à¤· à¤¸à¥‡ à¤ªà¥‚à¤›à¥‡à¤‚...",
-          "drawer.header_sub": "à¤ªà¥ƒà¤·à¥à¤  18 / 64 Â· à¤…à¤¨à¥à¤­à¤¾à¤— 4.2 à¤¡à¥€à¤ªà¥à¤°à¥‡à¤¸à¤°à¤¾à¤‡à¤œà¥‡à¤¶à¤¨",
-          "drawer.citation_match": "à¤¸à¤Ÿà¥€à¤• à¤‰à¤¦à¥à¤§à¤°à¤£ à¤®à¤¿à¤²à¤¾à¤¨",
-          "drawer.target_badge": "à¤—à¥à¤°à¤¾à¤‰à¤‚à¤¡à¤¿à¤‚à¤— à¤²à¤•à¥à¤·à¥à¤¯ Â· à¤‰à¤¦à¥à¤§à¤°à¤£ #1",
-          "drawer.snippet_body":
-            '"à¤…à¤¨à¥à¤¸à¥‚à¤šà¤¿à¤¤ à¤¯à¤¾ à¤†à¤ªà¤¾à¤¤à¤•à¤¾à¤²à¥€à¤¨ à¤¶à¤Ÿà¤¡à¤¾à¤‰à¤¨ à¤•à¥‡ à¤¦à¥Œà¤°à¤¾à¤¨, à¤†à¤‡à¤¸à¥‹à¤²à¥‡à¤¶à¤¨ à¤µà¤¾à¤²à¥à¤µ IV-102 à¤¸à¥‡ IV-108 à¤•à¥‹ à¤¯à¤¾à¤‚à¤¤à¥à¤°à¤¿à¤• à¤°à¥‚à¤ª à¤¸à¥‡ à¤²à¥‰à¤• à¤”à¤° à¤ªà¥ˆà¤¡à¤²à¥‰à¤•-à¤Ÿà¥ˆà¤— à¤•à¤¿à¤¯à¤¾ à¤œà¤¾à¤à¤—à¤¾à¥¤ à¤¨à¤¿à¤•à¤²à¤¾ à¤¹à¥à¤† à¤•à¤¿à¤¨à¤¾à¤°à¤¾ à¤¸à¥€à¤² à¤¤à¥‹à¤¡à¤¼à¤¨à¥‡ à¤¸à¥‡ à¤ªà¤¹à¤²à¥‡ à¤¬à¤¾à¤ˆà¤ªà¤¾à¤¸ à¤®à¥ˆà¤¨à¤¿à¤«à¥‹à¤²à¥à¤¡ B-7 à¤ªà¤° à¤µà¤¿à¤­à¥‡à¤¦à¤• à¤Ÿà¥‡à¤²à¥€à¤®à¥‡à¤Ÿà¥à¤°à¥€ à¤¶à¥‚à¤¨à¥à¤¯ à¤¬à¤¾à¤° à¤•à¥€ à¤ªà¥à¤·à¥à¤Ÿà¤¿ à¤•à¤°à¤¨à¥€ à¤šà¤¾à¤¹à¤¿à¤..."',
-          "drawer.preview": "à¤ªà¥ƒà¤·à¥à¤  à¤ªà¥‚à¤°à¥à¤µà¤¾à¤µà¤²à¥‹à¤•à¤¨ (18)",
-          "drawer.prev": "â† à¤ªà¤¿à¤›à¤²à¤¾",
-          "drawer.next": "à¤…à¤—à¤²à¤¾ â†’",
-          "drawer.jump": "à¤œà¤¾à¤à¤‚:",
-          "footer.kernel": "à¤µà¥‰à¤²à¥à¤Ÿ à¤•à¤°à¥à¤¨à¥‡à¤² v4.19-à¤à¤¯à¤°à¤—à¥ˆà¤ª",
-          "footer.egress": "à¤¶à¥‚à¤¨à¥à¤¯-à¤¨à¤¿à¤°à¥à¤—à¤®à¤¨ à¤¸à¤¤à¥à¤¯à¤¾à¤ªà¤¿à¤¤",
-        },
-        kn: {
-          "nav.chat": "à²šà²¾à²Ÿà³",
-          "nav.knowledge": "à²œà³à²žà²¾à²¨",
-          "nav.code": "à²•à³‹à²¡à³",
-          "nav.models": "à²®à²¾à²¦à²°à²¿à²—à²³à³",
-          "nav.logs": "à²²à²¾à²—à³â€Œà²—à²³à³",
-          "status.offline": "à²†à²«à³â€Œà²²à³ˆà²¨à³",
-          "settings.title": "à²•à²¾à²°à³à²¯à²•à³à²·à³‡à²¤à³à²°à²¦ à²†à²¦à³à²¯à²¤à³†à²—à²³à³",
-          "settings.theme": "à²°à³‚à²ª (à²¥à³€à²®à³)",
-          "settings.language": "à²­à²¾à²·à³† (Language)",
-          "theme.light": "à²²à³ˆà²Ÿà³",
-          "theme.dark": "à²¡à²¾à²°à³à²•à³",
-          "theme.system": "à²¸à³à²µà²¯à²‚",
-          "sidebar.sources": "à²®à³‚à²²à²—à²³à³",
-          "sidebar.add": "+ à²¸à³‡à²°à²¿à²¸à²¿",
-          "sidebar.enclave": "à²¸à³à²¥à²³à³€à²¯ à²Žà²¨à³â€Œà²•à³à²²à³‡à²µà³",
-          "sidebar.enclave_sub":
-            "4 à²®à³‚à²²à²—à²³à²¨à³à²¨à³ à²¸à³à²¥à²³à³€à²¯à²µà²¾à²—à²¿ à²¸à³‚à²šà²¿à²•à³† à²®à²¾à²¡à²²à²¾à²—à²¿à²¦à³† Â· à²Žà²¨à³â€Œà²•à³à²²à³‡à²µà³ à²¸à²•à³à²°à²¿à²¯",
-          "workspace.title": "à²œà³à²žà²¾à²¨",
-          "workspace.grounding": "à²—à³à²°à³Œà²‚à²¡à²¿à²‚à²—à³",
-          "workspace.source_count": "4 à²®à³‚à²²à²—à²³à³",
-          "workspace.strict_btn": "à²—à³à²°à³Œà²‚à²¡à²¿à²‚à²—à³: à²•à²Ÿà³à²Ÿà³à²¨à²¿à²Ÿà³à²Ÿà²¾à²¦",
-          "synthesis.query_heading": "à²¸à³à²¥à²—à²¿à²¤à²—à³Šà²³à²¿à²¸à³à²µà²¿à²•à³†à²¯ à²…à²—à²¤à³à²¯à²¤à³†à²—à²³à³‡à²¨à³?",
-          "synthesis.badge": "à²µà²¾à²²à³à²Ÿà³ à²¸à²‚à²¶à³à²²à³‡à²·à²£à³†",
-          "synthesis.deterministic": "à²¦à³ƒà²¢à³€à²•à³ƒà²¤ à²ªà²°à²¿à²¶à³€à²²à²¨à³†: 99.8%",
-          "synthesis.lead":
-            "à²•à³‹à²²à³à²¡à³-à²²à³‚à²ªà³ à²¤à²ªà²¾à²¸à²£à³†à²—à³† à²®à³à²‚à²šà²¿à²¤à²µà²¾à²—à²¿ à²¨à²¿à²°à³à²µà²¹à²£à²¾ à²•à²¾à²°à³à²¯à²µà²¿à²§à²¾à²¨à²µà³ à²•à²Ÿà³à²Ÿà³à²¨à²¿à²Ÿà³à²Ÿà²¾à²¦ à²¬à²¹à³-à²¹à²‚à²¤à²¦ à²­à³Œà²¤à²¿à²• à²ªà³à²°à²¤à³à²¯à³‡à²•à²¤à³†à²¯ à²ªà³à²°à³‹à²Ÿà³‹à²•à²¾à²²à³ à²…à²¨à³à²¨à³ à²•à²¡à³à²¡à²¾à²¯à²—à³Šà²³à²¿à²¸à³à²¤à³à²¤à²¦à³†. à²®à³‚à²°à³ à²•à²¡à³à²¡à²¾à²¯ à²—à³‡à²Ÿà³â€Œà²—à²³ à²‰à²²à³à²²à³‡à²–:",
-          "point1.title": "à²ªà³à²°à²¾à²¥à²®à²¿à²• à²²à³‚à²ªà³ à²’à²¤à³à²¤à²¡ à²¨à²¿à²µà²¾à²°à²£à³†",
-          "point1.body":
-            "à²ªà³à²°à²¤à³à²¯à³‡à²•à²¿à²¸à³à²µ à²µà²¾à²²à³à²µà³â€Œà²—à²³à³ IV-102 à²°à²¿à²‚à²¦ IV-108 à²µà²°à³†à²—à³† à²¯à²¾à²‚à²¤à³à²°à²¿à²•à²µà²¾à²—à²¿ à²²à²¾à²•à³ à²®à²¤à³à²¤à³ à²ªà³à²¯à²¾à²¡à³â€Œà²²à²¾à²•à³ à²®à²¾à²¡à²¬à³‡à²•à³. à²«à³à²²à³‡à²‚à²œà³ à²¸à³€à²²à³à²—à²³à²¨à³à²¨à³ à²¤à³†à²°à³†à²¯à³à²µ à²®à³Šà²¦à²²à³ à²¬à³ˆà²ªà²¾à²¸à³ à²®à³à²¯à²¾à²¨à²¿à²«à³‹à²²à³à²¡à³ B-7 à²¨à²²à³à²²à²¿ à²¶à³‚à²¨à³à²¯ à²¬à²¾à²°à³ (à²—à³‡à²œà³) à²‡à²°à³à²µà³à²¦à²¨à³à²¨à³ à²Ÿà³†à²²à²¿à²®à³†à²Ÿà³à²°à²¿ à²–à²šà²¿à²¤à²ªà²¡à²¿à²¸à²¬à³‡à²•à³.",
-          "point2.title": "à²‰à²³à²¿à²¦ à²‰à²·à³à²£ à²ªà³à²°à²¸à²°à²£ à²…à²µà²§à²¿",
-          "point2.body":
-            "à²Žà²²à³à²²à²¾ à²ªà³à²°à²¾à²¥à²®à²¿à²• à²•à³‹à²°à³ à²¥à²°à³à²®à³‹à²•à²ªà²²à³ à²•à³à²²à²¸à³à²Ÿà²°à³â€Œà²—à²³à³ à²¨à²¿à²°à²‚à²¤à²° 60 à²¨à²¿à²®à²¿à²·à²—à²³ à²•à²¾à²² 42Â°C à²—à²¿à²‚à²¤ à²•à²¡à²¿à²®à³†à²¯à²¾à²—à³à²µà²µà²°à³†à²—à³† à²¸à²¹à²¾à²¯à²• à²•à³‚à²²à²¿à²‚à²—à³ à²ªà²‚à²ªà³â€Œà²—à²³à³ à²¬à²²à²µà²‚à²¤à²¦ à²ªà²°à²¿à²šà²²à²¨à³† à²¬à³ˆà²ªà²¾à²¸à³â€Œà²¨à²²à³à²²à²¿ à²²à²¾à²•à³ à²†à²—à²¿à²°à²¬à³‡à²•à³.",
-          "point3.title": "à²¦à³à²µà²¿à²¤à³€à²¯ à²¨à²¿à²¯à²‚à²¤à³à²°à²£ à²µà²¾à²¤à²¾à²µà²°à²£ à²­à²°à²µà²¸à³†",
-          "point3.body":
-            "à²¬à²¾à²·à³à²ªà²¶à³€à²² à²«à³à²²à³‹à²°à³‹à²•à²¾à²°à³à²¬à²¨à³â€Œà²—à²³à²¿à²—à²¾à²—à²¿ à²µà²¾à²¤à²¾à²µà²°à²£à²¦ à²¸à²‚à²µà³‡à²¦à²• à²ªà²°à²¿à²¶à³€à²²à²¨à³†à²¯à²¨à³à²¨à³ à²Žà²²à³à²²à²¾ à²¨à²¾à²²à³à²•à³ à²µà²²à²¯à²—à²³à²²à³à²²à²¿ à²ªà³à²°à²¤à²¿ 15 à²¨à²¿à²®à²¿à²·à²—à²³à²¿à²—à³Šà²®à³à²®à³† à²¦à²¾à²–à²²à²¿à²¸à²¬à³‡à²•à³. à²¸à³à²•à³à²°à²¬à³à²¬à²°à³â€Œà²—à²³à³ à²Žà²°à²¡à³ à²µà²¾à²²à³à²¯à³‚à²®à³ à²µà²¿à²¨à²¿à²®à²¯à²µà²¨à³à²¨à³ à²ªà³‚à²°à³à²£à²—à³Šà²³à²¿à²¸à³à²µà²µà²°à³†à²—à³† à²¹à³à²¯à²¾à²šà³ à²‡à²‚à²Ÿà²°à³â€Œà²²à²¾à²•à³â€Œà²—à²³à³ à²ªà³à²°à²µà³‡à²¶ à²¨à²¿à²°à²¾à²•à²°à²¿à²¸à³à²¤à³à²¤à²µà³†.",
-          "synthesis.guarantee":
-            "à²¸à²‚à²ªà³‚à²°à³à²£à²µà²¾à²—à²¿ à²¸à³à²¥à²³à³€à²¯ à²à²°à³â€Œà²—à³à²¯à²¾à²ªà³à²¡à³ à²•à³à²°à²¿à²ªà³à²Ÿà³‹à²—à³à²°à²¾à²«à²¿à²•à³ à²µà²¾à²²à³à²¯à³‚à²®à³ à²†à²§à²¾à²°à²¿à²¤. à²¶à³‚à²¨à³à²¯ à²­à³à²°à²®à³† à²¸à²¹à²¿à²·à³à²£à³à²¤à³†.",
-          "synthesis.audit": "à²†à²¡à²¿à²Ÿà³ à²²à²¾à²—à³",
-          "prompt.sugg1": '"à²¸à³à²¥à²—à²¿à²¤à²—à³Šà²³à²¿à²¸à³à²µà²¿à²•à³†à²¯ à²…à²—à²¤à³à²¯à²¤à³†à²—à²³à³‡à²¨à³?"',
-          "prompt.sugg2": '"à²¹à²¿à²‚à²¦à²¿à²¨ à²¤à³à²•à³à²•à³ à²¸à²‚à²¶à³‹à²§à²¨à³†à²—à²³à²¨à³à²¨à³ à²¹à³à²¡à³à²•à²¿."',
-          "prompt.sugg3": '"à²¤à²ªà²¾à²¸à²£à²¾ à²µà²°à²¦à²¿à²¯à²¨à³à²¨à³ à²¸à²‚à²•à³à²·à³‡à²ªà²¿à²¸à²¿."',
-          "composer.placeholder": "à²¨à²¿à²®à³à²® à²–à²¾à²¸à²—à²¿ à²œà³à²žà²¾à²¨ à²¸à²‚à²—à³à²°à²¹à²µà²¨à³à²¨à³ à²•à³‡à²³à²¿...",
-          "drawer.header_sub": "à²ªà³à²Ÿ 18 / 64 Â· à²µà²¿à²­à²¾à²— 4.2 à²’à²¤à³à²¤à²¡ à²¨à²¿à²µà²¾à²°à²£à³†",
-          "drawer.citation_match": "à²¨à²¿à²–à²°à²µà²¾à²¦ à²‰à²²à³à²²à³‡à²– à²¹à³Šà²‚à²¦à²¾à²£à²¿à²•à³†",
-          "drawer.target_badge": "à²—à³à²°à³Œà²‚à²¡à²¿à²‚à²—à³ à²—à³à²°à²¿ Â· à²‰à²²à³à²²à³‡à²– #1",
-          "drawer.snippet_body":
-            '"à²¨à²¿à²—à²¦à²¿à²¤ à²…à²¥à²µà²¾ à²¤à³à²°à³à²¤à³ à²¸à³à²¥à²—à²¿à²¤à²—à³Šà²³à²¿à²¸à³à²µ à²¸à²®à²¯à²¦à²²à³à²²à²¿, à²ªà³à²°à²¤à³à²¯à³‡à²•à²¿à²¸à³à²µ à²µà²¾à²²à³à²µà³â€Œà²—à²³à³ IV-102 à²°à²¿à²‚à²¦ IV-108 à²µà²°à³†à²—à³† à²¯à²¾à²‚à²¤à³à²°à²¿à²•à²µà²¾à²—à²¿ à²²à²¾à²•à³ à²®à²¾à²¡à²¬à³‡à²•à³. à²«à³à²²à³‡à²‚à²œà³ à²¸à³€à²²à³à²—à²³à²¨à³à²¨à³ à²®à³à²°à²¿à²¯à³à²µ à²®à³Šà²¦à²²à³ à²¬à³ˆà²ªà²¾à²¸à³ à²®à³à²¯à²¾à²¨à²¿à²«à³‹à²²à³à²¡à³ B-7 à²¨à²²à³à²²à²¿ à²¶à³‚à²¨à³à²¯ à²¬à²¾à²°à³ à²‡à²°à³à²µà³à²¦à²¨à³à²¨à³ à²Ÿà³†à²²à²¿à²®à³†à²Ÿà³à²°à²¿ à²–à²šà²¿à²¤à²ªà²¡à²¿à²¸à²¬à³‡à²•à³..."',
-          "drawer.preview": "à²ªà³à²Ÿ à²ªà³‚à²°à³à²µà²µà³€à²•à³à²·à²£à³† (18)",
-          "drawer.prev": "â† à²¹à²¿à²‚à²¦à²¿à²¨",
-          "drawer.next": "à²®à³à²‚à²¦à²¿à²¨ â†’",
-          "drawer.jump": "à²ªà³à²Ÿ:",
-          "footer.kernel": "à²µà²¾à²²à³à²Ÿà³ à²•à²°à³à²¨à²²à³ v4.19-à²à²°à³â€Œà²—à³à²¯à²¾à²ªà³",
-          "footer.egress": "à²¶à³‚à²¨à³à²¯-à²¹à³Šà²°à²¹à²°à²¿à²µà³ à²ªà²°à²¿à²¶à³€à²²à²¿à²¸à²²à²¾à²—à²¿à²¦à³†",
-        },
-      };
+const normalizeCitations = (raw = []) =>
+  raw.map((c) => ({
+    document: c.document || c.filename || c.source || 'Source Document',
+    document_id: c.document_id,
+    page: c.page ?? c.page_number ?? null,
+    section: c.section || null,
+    chunk_id: c.chunk_id,
+    relevance_score: c.relevance_score ?? c.score ?? null,
+    snippet: c.snippet || c.content || c.text || '',
+  }))
 
-      // State
-      let currentTheme = localStorage.getItem("vault_theme") || "light";
-      let currentLang = localStorage.getItem("vault_lang") || "en";
+const fileGlyph = (type = '') => type.replace('.', '').toUpperCase().slice(0, 4) || 'DOC'
 
-      // 2. Theme Applier
-      function applyTheme(theme) {
-        currentTheme = theme;
-        localStorage.setItem("vault_theme", theme);
-        const root = document.documentElement;
+export default function KnowledgeScreen() {
+  const [sources, setSources] = useState([])
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [loadingSources, setLoadingSources] = useState(true)
+  const [messages, setMessages] = useState([])
+  const [input, setInput] = useState('')
+  const [isQuerying, setIsQuerying] = useState(false)
+  const [statusText, setStatusText] = useState('')
+  const [activeCitation, setActiveCitation] = useState(null)
+  const [dragOver, setDragOver] = useState(false)
+  const [studioNotes, setStudioNotes] = useState([])
+  const [studioBusy, setStudioBusy] = useState(null)
+  const [expandedNote, setExpandedNote] = useState(null)
 
-        if (theme === "system") {
-          const prefersDark = window.matchMedia(
-            "(prefers-color-scheme: dark)",
-          ).matches;
-          if (prefersDark) {
-            root.classList.add("dark");
-          } else {
-            root.classList.remove("dark");
-          }
-        } else if (theme === "dark") {
-          root.classList.add("dark");
-        } else {
-          root.classList.remove("dark");
-        }
+  const fileInputRef = useRef(null)
+  const scrollRef = useRef(null)
 
-        // Update theme segmented control buttons style
-        document.querySelectorAll(".theme-option-btn").forEach((btn) => {
-          const val = btn.getAttribute("data-theme-val");
-          if (val === theme) {
-            btn.className =
-              "theme-option-btn flex items-center justify-center gap-1 py-1 rounded font-mono text-[11px] bg-v-surface text-v-accent font-semibold shadow-xs border border-v-border";
-          } else {
-            btn.className =
-              "theme-option-btn flex items-center justify-center gap-1 py-1 rounded font-mono text-[11px] text-v-text-sec hover:text-v-text transition-all";
-          }
-        });
-      }
+  const selectedCount = selectedIds.size
+  const groundDocId = selectedCount === 1 ? [...selectedIds][0] : null
+  const hasSources = sources.length > 0
+  const allSelected = hasSources && selectedCount === sources.length
 
-      // Listen for system theme changes if set to system
-      window
-        .matchMedia("(prefers-color-scheme: dark)")
-        .addEventListener("change", (e) => {
-          if (currentTheme === "system") {
-            applyTheme("system");
-          }
-        });
-
-      // 3. Language Applier
-      function applyLanguage(lang) {
-        if (!i18nData[lang]) lang = "en";
-        currentLang = lang;
-        localStorage.setItem("vault_lang", lang);
-
-        // Update trigger button indicator
-        const langCodeDisplay = document.getElementById("current-lang-code");
-        if (langCodeDisplay) langCodeDisplay.textContent = lang.toUpperCase();
-
-        // Update elements with data-i18n
-        const dict = i18nData[lang];
-        document.querySelectorAll("[data-i18n]").forEach((elem) => {
-          const key = elem.getAttribute("data-i18n");
-          if (dict[key]) {
-            elem.textContent = dict[key];
-          }
-        });
-
-        // Update input placeholder
-        const composerInput = document.getElementById("main-composer-input");
-        if (composerInput && dict["composer.placeholder"]) {
-          composerInput.placeholder = dict["composer.placeholder"];
-        }
-
-        // Update language options checkmarks in popover
-        document.querySelectorAll(".lang-option-btn").forEach((btn) => {
-          const val = btn.getAttribute("data-lang-val");
-          const checkIcon = btn.querySelector(".check-icon");
-          if (val === lang) {
-            btn.classList.add(
-              "bg-v-surface-sec",
-              "text-v-accent",
-              "font-medium",
-            );
-            if (checkIcon) checkIcon.classList.remove("opacity-0");
-          } else {
-            btn.classList.remove(
-              "bg-v-surface-sec",
-              "text-v-accent",
-              "font-medium",
-            );
-            if (checkIcon) checkIcon.classList.add("opacity-0");
-          }
-        });
-      }
-
-      // 4. Popover Toggle & Global Interactions
-      const settingsBtn = document.getElementById("settings-trigger");
-      const settingsPopover = document.getElementById("settings-popover");
-
-      if (settingsBtn && settingsPopover) {
-        settingsBtn.addEventListener("click", function (e) {
-          e.stopPropagation();
-          const isOpen = !settingsPopover.classList.contains("hidden");
-          if (isOpen) {
-            settingsPopover.classList.add("hidden");
-            settingsBtn.setAttribute("aria-expanded", "false");
-          } else {
-            settingsPopover.classList.remove("hidden");
-            settingsBtn.setAttribute("aria-expanded", "true");
-          }
-        });
-
-        // Close popover when clicking outside
-        document.addEventListener("click", function (e) {
-          if (
-            !settingsPopover.contains(e.target) &&
-            !settingsBtn.contains(e.target)
-          ) {
-            settingsPopover.classList.add("hidden");
-            settingsBtn.setAttribute("aria-expanded", "false");
-          }
-        });
-      }
-
-      // Bind Theme Option clicks
-      document.querySelectorAll(".theme-option-btn").forEach((btn) => {
-        btn.addEventListener("click", function () {
-          const val = this.getAttribute("data-theme-val");
-          applyTheme(val);
-        });
-      });
-
-      // Bind Language Option clicks
-      document.querySelectorAll(".lang-option-btn").forEach((btn) => {
-        btn.addEventListener("click", function () {
-          const val = this.getAttribute("data-lang-val");
-          applyLanguage(val);
-        });
-      });
-
-      // Initial Mount
-      applyTheme(currentTheme);
-      applyLanguage(currentLang);
-    })();
-
-    const TARGETS = [
-      ["chat", ["chat"]],
-      ["kb", ["knowledge"]],
-      ["code", ["code"]],
-      ["models", ["models"]],
-      ["logs", ["logs", "activity"]],
-    ];
-    const sidebar = root.querySelector("aside");
-    if (sidebar) {
-      sidebar.querySelectorAll('a[href="#"]').forEach((a) => {
-        const key = [
-          a.id,
-          a.dataset.path,
-          a.dataset.i18nTitle,
-          a.getAttribute("title"),
-          a.getAttribute("aria-label"),
-          a.textContent,
-        ]
-          .join(" ")
-          .toLowerCase();
-        const hit = TARGETS.find(([, words]) =>
-          words.some((w) => key.includes(w)),
-        );
-        if (!hit) return;
-        a.addEventListener("click", (e) => {
-          e.preventDefault();
-          navRef.current && navRef.current(hit[0]);
-        });
-      });
+  const loadSources = useCallback(async () => {
+    setLoadingSources(true)
+    try {
+      const docs = await listKnowledgeDocuments()
+      const mapped = (docs || []).map((d) => ({
+        id: d.document_id,
+        name: d.filename || d.document_id,
+        type: d.file_type || 'doc',
+        chunks: d.chunk_count ?? 0,
+        status: (d.ingestion_status || 'indexed').toLowerCase(),
+      }))
+      setSources(mapped)
+      setSelectedIds(new Set(mapped.map((m) => m.id)))
+    } finally {
+      setLoadingSources(false)
     }
-    root.querySelectorAll("[data-onclick]").forEach((el) => {
-      el.addEventListener("click", () => {
-        eval(el.getAttribute("data-onclick"));
-      });
-    });
-  }, []);
+  }, [])
+
+  useEffect(() => { loadSources() }, [loadSources])
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+  }, [messages, isQuerying])
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') setActiveCitation(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const toggleSelect = (id) => setSelectedIds((prev) => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+  const toggleSelectAll = () =>
+    setSelectedIds(allSelected ? new Set() : new Set(sources.map((s) => s.id)))
+
+  const handleFiles = async (fileList) => {
+    const files = Array.from(fileList || [])
+    for (const file of files) {
+      const tempId = `up-${Date.now()}-${file.name}`
+      setSources((prev) => [
+        { id: tempId, name: file.name, type: file.name.split('.').pop(), chunks: 0, status: 'uploading' },
+        ...prev,
+      ])
+      try {
+        const res = await uploadAndIngestDocument(file)
+        const realId = res.document_id || tempId
+        setSources((prev) => prev.map((s) => (s.id === tempId
+          ? { id: realId, name: res.filename || file.name, type: res.file_type || file.name.split('.').pop(), chunks: res.chunks ?? 0, status: 'indexed' }
+          : s)))
+        setSelectedIds((prev) => new Set(prev).add(realId))
+      } catch {
+        setSources((prev) => prev.map((s) => (s.id === tempId ? { ...s, status: 'error' } : s)))
+      }
+    }
+  }
+
+  const onDrop = (e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files) }
+
+  const handleDelete = async (id) => {
+    setSources((prev) => prev.filter((s) => s.id !== id))
+    setSelectedIds((prev) => { const n = new Set(prev); n.delete(id); return n })
+    await deleteKnowledgeDocument(id)
+  }
+
+  const runQuery = async (text) => {
+    const q = (text ?? input).trim()
+    if (!q || isQuerying) return
+    setInput('')
+    setMessages((prev) => [...prev, { id: `u-${Date.now()}`, role: 'user', text: q }])
+    setIsQuerying(true)
+    setStatusText('Searching local vectors…')
+    try {
+      const res = await queryKnowledge(q, 6, groundDocId)
+      setMessages((prev) => [...prev, {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        text: res.answer || 'No grounded answer was produced.',
+        citations: normalizeCitations(res.citations),
+        evidenceQuality: res.evidence_quality,
+        model: res.model_used,
+        durationMs: res.total_time_ms,
+        tokensUsed: res.tokens_used,
+      }])
+    } catch (err) {
+      setMessages((prev) => [...prev, {
+        id: `a-${Date.now()}`, role: 'assistant', isError: true,
+        text: `⚠️ Could not reach the local knowledge engine. (${err.message || 'unavailable'})`,
+      }])
+    } finally {
+      setIsQuerying(false)
+      setStatusText('')
+    }
+  }
+
+  const handleStudio = async (action) => {
+    if (studioBusy || !hasSources) return
+    setStudioBusy(action.key)
+    try {
+      const res = await queryKnowledge(action.prompt, 8, groundDocId)
+      setStudioNotes((prev) => [{
+        id: `note-${Date.now()}`,
+        title: action.label,
+        content: res.answer || 'No output generated.',
+        citations: normalizeCitations(res.citations),
+        ts: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }, ...prev])
+    } finally {
+      setStudioBusy(null)
+    }
+  }
+
+  const copyText = (t) => navigator.clipboard?.writeText(t)
 
   return (
-    <div
-      ref={rootRef}
-      className={
-        "bg-v-bg font-sans text-v-text antialiased selection:bg-v-tint selection:text-v-accent"
-      }
-    >
-      {" "}
-      <main className={"w-full min-h-screen bg-v-bg "}>
-        {" "}
-        <div className={"flex flex-col w-full text-v-text"}>
-          {" "}
-          <div
-            className={
-              "flex w-full select-none bg-v-bg h-screen overflow-hidden"
-            }
-          >
-            {" "}
-            <section
-              className={"flex-1 flex flex-col min-w-0 bg-v-bg relative"}
-            >
-              {" "}
-              <div
-                className={
-                  "h-12 px-8 flex items-center justify-between border-b border-v-border bg-v-surface/80 backdrop-blur-sm flex-shrink-0"
-                }
-              >
-                {" "}
-                <div className={"flex items-center gap-3"}>
-                  {" "}
-                  <h1
-                    className={"text-lg font-medium tracking-tight text-v-text"}
-                    data-i18n={"workspace.title"}
-                  >
-                    Knowledge
-                  </h1>{" "}
-                  <span className={"text-v-text-dim text-sm"}>/</span>{" "}
-                  <div className={"flex items-center gap-1.5"}>
-                    {" "}
-                    <span
-                      className={
-                        "font-mono text-xs text-v-text-sec uppercase tracking-wider"
-                      }
-                      data-i18n={"workspace.grounding"}
-                    >
-                      Grounding
-                    </span>{" "}
-                    <span
-                      className={
-                        "font-mono text-[11px] text-v-text-sec px-1.5 py-0.5 bg-v-surface-sec border border-v-border rounded"
-                      }
-                      data-i18n={"workspace.source_count"}
-                    >
-                      4 sources
-                    </span>{" "}
-                  </div>{" "}
-                </div>{" "}
-                <div className={"flex items-center gap-3"}>
-                  {" "}
-                  <button
-                    className={
-                      "flex items-center gap-1.5 px-2.5 py-1 rounded border border-v-border bg-v-surface text-v-text-sec hover:text-v-text text-xs font-mono uppercase transition-colors shadow-sm"
-                    }
-                    type={"button"}
-                  >
-                    {" "}
-                    <span className={"material-symbols-outlined text-[14px]"}>
-                      tune
-                    </span>{" "}
-                    <span
-                      className={"text-v-accent font-medium"}
-                      data-i18n={"workspace.strict_btn"}
-                    >
-                      Grounding: Strict
-                    </span>{" "}
-                  </button>{" "}
-                  <button
-                    className={
-                      "w-7 h-7 rounded border border-v-border bg-v-surface flex items-center justify-center text-v-text-sec hover:text-v-text transition-colors shadow-sm"
-                    }
-                    title={"Export session synthesis"}
-                    type={"button"}
-                  >
-                    {" "}
-                    <span className={"material-symbols-outlined text-[16px]"}>
-                      file_download
-                    </span>{" "}
-                  </button>{" "}
-                </div>{" "}
-              </div>{" "}
-              <div
-                className={
-                  "flex-1 overflow-y-auto py-8 flex flex-col items-center select-text px-6"
-                }
-              >
-                {" "}
-                <div className={"w-full max-w-[760px] flex flex-col pb-36"}>
-                  {" "}
-                  <div
-                    className={
-                      "flex items-baseline justify-between mb-8 pb-4 border-b border-v-border"
-                    }
-                  >
-                    {" "}
-                    <h2
-                      className={
-                        "text-2xl font-normal text-v-text tracking-tight"
-                      }
-                      data-i18n={"synthesis.query_heading"}
-                    >
-                      What are the shutdown requirements?
-                    </h2>{" "}
-                    <span
-                      className={
-                        "font-mono text-xs text-v-text-dim ml-4 flex-shrink-0"
-                      }
-                    >
-                      QUERY_ID #8902
-                    </span>{" "}
-                  </div>{" "}
-                  <article className={"flex flex-col gap-6"}>
-                    {" "}
-                    <div className={"flex items-center gap-2"}>
-                      {" "}
-                      <span
-                        className={
-                          "font-mono text-xs uppercase text-v-accent font-semibold tracking-widest px-2 py-0.5 bg-v-tint border border-v-border rounded"
-                        }
-                        data-i18n={"synthesis.badge"}
-                      >
-                        VAULT SYNTHESIS
-                      </span>{" "}
-                      <span
-                        className={"font-mono text-[11px] text-v-text-dim"}
-                        data-i18n={"synthesis.deterministic"}
-                      >
-                        Deterministic verification: 99.8%
-                      </span>{" "}
-                    </div>{" "}
-                    <p
-                      className={
-                        "text-base text-v-text-sec leading-relaxed font-normal"
-                      }
-                      data-i18n={"synthesis.lead"}
-                    >
-                      The maintenance procedure mandates a strict multi-staged
-                      physical isolation protocol prior to cold-loop inspection.
-                      Cross-document grounding references three compulsory
-                      gates:
-                    </p>{" "}
-                    <div
-                      className={
-                        "flex flex-col gap-3 pl-4 border-l-2 border-v-accent bg-v-surface border border-v-border p-4 rounded-r shadow-xs"
-                      }
-                    >
-                      {" "}
-                      <div className={"flex items-start gap-3"}>
-                        {" "}
-                        <span
-                          className={
-                            "font-mono text-xs text-v-accent font-semibold"
-                          }
-                        >
-                          01
-                        </span>{" "}
-                        <div className={"flex flex-col gap-2"}>
-                          {" "}
-                          <h3
-                            className={
-                              "text-base font-medium text-v-text tracking-normal"
-                            }
-                            data-i18n={"point1.title"}
-                          >
-                            Primary Loop Depressurization
-                          </h3>{" "}
-                          <p
-                            className={
-                              "text-sm text-v-text-sec leading-relaxed"
-                            }
-                            data-i18n={"point1.body"}
-                          >
-                            Isolation valves{" "}
-                            <code
-                              className={
-                                "font-mono text-xs px-1 py-0.5 bg-v-surface-sec border border-v-border text-v-text rounded"
-                              }
-                            >
-                              IV-102
-                            </code>{" "}
-                            through{" "}
-                            <code
-                              className={
-                                "font-mono text-xs px-1 py-0.5 bg-v-surface-sec border border-v-border text-v-text rounded"
-                              }
-                            >
-                              IV-108
-                            </code>{" "}
-                            must be mechanically dogged and padlock-tagged.
-                            Differential telemetry must confirm zero bar (gauge)
-                            across bypass manifold B-7 before breaking flange
-                            seals.
-                          </p>{" "}
-                          <div className={"mt-1 flex items-center"}>
-                            {" "}
-                            <button
-                              className={
-                                "inline-flex items-center gap-2 px-2.5 py-1 rounded bg-v-surface border border-v-border text-v-accent hover:bg-v-tint transition-colors shadow-sm cursor-pointer"
-                              }
-                              type={"button"}
-                            >
-                              {" "}
-                              <span
-                                className={
-                                  "material-symbols-outlined text-[14px]"
-                                }
-                              >
-                                auto_stories
-                              </span>{" "}
-                              <span
-                                className={
-                                  "font-mono text-xs font-medium tracking-wide"
-                                }
-                              >
-                                Maintenance SOP Â· p.18
-                              </span>{" "}
-                              <span
-                                className={
-                                  "w-1.5 h-1.5 rounded-full bg-v-accent"
-                                }
-                              ></span>{" "}
-                            </button>{" "}
-                          </div>{" "}
-                        </div>{" "}
-                      </div>{" "}
-                    </div>{" "}
-                    <div
-                      className={
-                        "flex flex-col gap-3 pl-4 border-l border-v-border p-3.5 bg-v-surface/40 rounded"
-                      }
-                    >
-                      {" "}
-                      <div className={"flex items-start gap-3"}>
-                        {" "}
-                        <span
-                          className={
-                            "font-mono text-xs text-v-accent font-semibold"
-                          }
-                        >
-                          02
-                        </span>{" "}
-                        <div className={"flex flex-col gap-2"}>
-                          {" "}
-                          <h3
-                            className={
-                              "text-base font-medium text-v-text tracking-normal"
-                            }
-                            data-i18n={"point2.title"}
-                          >
-                            Residual Thermal Dissipation Window
-                          </h3>{" "}
-                          <p
-                            className={
-                              "text-sm text-v-text-sec leading-relaxed"
-                            }
-                            data-i18n={"point2.body"}
-                          >
-                            Auxiliary cooling pumps must remain locked on
-                            forced-circulation bypass until all primary core
-                            thermocouple clusters register below 42Â°C for a
-                            continuous, uninterrupted 60-minute interval.
-                          </p>{" "}
-                          <div className={"mt-1 flex items-center"}>
-                            {" "}
-                            <button
-                              className={
-                                "inline-flex items-center gap-2 px-2.5 py-1 rounded bg-v-tint border border-v-border text-v-accent hover:border-v-accent/50 transition-colors shadow-xs cursor-pointer"
-                              }
-                              type={"button"}
-                            >
-                              {" "}
-                              <span
-                                className={
-                                  "material-symbols-outlined text-[14px]"
-                                }
-                              >
-                                auto_stories
-                              </span>{" "}
-                              <span
-                                className={
-                                  "font-mono text-xs font-medium tracking-wide"
-                                }
-                              >
-                                Inspection Report Â· p.23
-                              </span>{" "}
-                            </button>{" "}
-                          </div>{" "}
-                        </div>{" "}
-                      </div>{" "}
-                    </div>{" "}
-                    <div
-                      className={
-                        "flex flex-col gap-3 pl-4 border-l border-v-border p-4 bg-v-surface rounded border shadow-xs"
-                      }
-                    >
-                      {" "}
-                      <div className={"flex items-start gap-3"}>
-                        {" "}
-                        <span
-                          className={
-                            "font-mono text-xs text-v-accent font-semibold"
-                          }
-                        >
-                          03
-                        </span>{" "}
-                        <div className={"flex flex-col gap-2"}>
-                          {" "}
-                          <h3
-                            className={
-                              "text-base font-medium text-v-text tracking-normal"
-                            }
-                            data-i18n={"point3.title"}
-                          >
-                            Secondary Containment Atmospheric Assurance
-                          </h3>{" "}
-                          <p
-                            className={
-                              "text-sm text-v-text-sec leading-relaxed"
-                            }
-                            data-i18n={"point3.body"}
-                          >
-                            Atmospheric sensor verification for volatile
-                            fluorocarbons must be logged at 15-minute intervals
-                            across all four facility quadrants. Manual
-                            technician hatch interlocks will refuse
-                            authorization until scrubbers complete two volume
-                            exchanges.
-                          </p>{" "}
-                          <div className={"mt-1 flex items-center"}>
-                            {" "}
-                            <button
-                              className={
-                                "inline-flex items-center gap-2 px-2.5 py-1 rounded bg-v-tint border border-v-border text-v-accent hover:border-v-accent/50 transition-colors shadow-xs cursor-pointer"
-                              }
-                              type={"button"}
-                            >
-                              {" "}
-                              <span
-                                className={
-                                  "material-symbols-outlined text-[14px]"
-                                }
-                              >
-                                auto_stories
-                              </span>{" "}
-                              <span
-                                className={
-                                  "font-mono text-xs font-medium tracking-wide"
-                                }
-                              >
-                                Safety Manual Â· p.91
-                              </span>{" "}
-                            </button>{" "}
-                          </div>{" "}
-                        </div>{" "}
-                      </div>{" "}
-                    </div>{" "}
-                    <div
-                      className={
-                        "flex flex-col gap-3 pl-4 border-l border-v-border p-4 bg-v-surface rounded border shadow-xs"
-                      }
-                    >
-                      {" "}
-                      <div className={"flex items-center gap-3"}>
-                        {" "}
-                        <span
-                          className={
-                            "material-symbols-outlined text-v-text-dim text-[18px]"
-                          }
-                        >
-                          verified_user
-                        </span>{" "}
-                      </div>{" "}
-                      <button
-                        className={
-                          "font-mono text-xs text-v-text-sec hover:text-v-text uppercase underline tracking-wider"
-                        }
-                        data-i18n={"synthesis.audit"}
-                        type={"button"}
-                      >
-                        Audit Log
-                      </button>{" "}
-                    </div>{" "}
-                  </article>{" "}
-                </div>{" "}
-              </div>{" "}
-              <div
-                className={
-                  "absolute bottom-0 left-0 right-0 p-6 flex flex-col items-center bg-gradient-to-t from-v-bg via-v-bg/95 to-transparent pointer-events-none"
-                }
-              >
-                {" "}
-                <div
-                  className={
-                    "w-full max-w-[740px] flex flex-col gap-2.5 pointer-events-auto"
-                  }
-                >
-                  {" "}
-                  <div
-                    className={
-                      "flex items-center justify-center gap-3 overflow-x-auto py-1"
-                    }
-                  >
-                    {" "}
-                    <button
-                      className={
-                        "font-mono text-[11px] text-v-text-sec hover:text-v-accent transition-colors cursor-pointer truncate"
-                      }
-                      data-i18n={"prompt.sugg1"}
-                      type={"button"}
-                    >
-                      "What are the shutdown requirements?"
-                    </button>{" "}
-                    <span className={"text-v-text-dim font-mono text-[10px]"}>
-                      Â·
-                    </span>{" "}
-                    <button
-                      className={
-                        "font-mono text-[11px] text-v-text-sec hover:text-v-accent transition-colors cursor-pointer truncate"
-                      }
-                      data-i18n={"prompt.sugg2"}
-                      type={"button"}
-                    >
-                      "Find previous corrosion findings."
-                    </button>{" "}
-                    <span className={"text-v-text-dim font-mono text-[10px]"}>
-                      Â·
-                    </span>{" "}
-                    <button
-                      className={
-                        "font-mono text-[11px] text-v-text-sec hover:text-v-accent transition-colors cursor-pointer truncate"
-                      }
-                      data-i18n={"prompt.sugg3"}
-                      type={"button"}
-                    >
-                      "Summarize the inspection report."
-                    </button>{" "}
-                  </div>{" "}
-                  <div
-                    className={
-                      "w-full flex items-center bg-v-surface border border-v-border rounded-full px-3 py-2 shadow-lg focus-within:border-v-accent/70 transition-all pl-2.5 pr-2.5"
-                    }
-                  >
-                    <button
-                      className={
-                        "w-8 h-8 rounded-full flex items-center justify-center text-v-text-sec hover:text-v-text transition-colors flex-shrink-0 hover:bg-v-surface-sec"
-                      }
-                      title={"Add local document to context"}
-                      type={"button"}
-                    >
-                      <span className={"material-symbols-outlined text-[20px]"}>
-                        add
-                      </span>
-                    </button>
-                    <input
-                      className={
-                        "flex-1 bg-transparent px-3 text-sm text-v-text placeholder:text-v-text-dim focus:outline-none"
-                      }
-                      id={"main-composer-input"}
-                      placeholder={"Ask your private knowledge base..."}
-                      type={"text"}
-                    />
-                    <div className={"flex items-center gap-1.5 flex-shrink-0"}>
-                      <span
-                        className={
-                          "font-mono text-[10px] text-v-text-sec px-2 py-0.5 bg-v-surface-sec rounded-full border border-v-border"
-                        }
-                      >
-                        âŒ˜K
-                      </span>
-                      <button
-                        className={
-                          "w-8 h-8 rounded-full bg-v-accent text-white flex items-center justify-center hover:opacity-90 transition-opacity cursor-pointer shadow-sm"
-                        }
-                        title={"Submit Query"}
-                        type={"button"}
-                      >
-                        <span
-                          className={"material-symbols-outlined text-[18px]"}
-                        >
-                          arrow_upward
-                        </span>
-                      </button>
+    <div className="w-full h-screen flex gap-3 p-3 bg-[#F7F6F2] dark:bg-[#151614] text-[#20211F] dark:text-[#ECEAE3] font-sans overflow-hidden">
+      <input ref={fileInputRef} type="file" multiple accept=".pdf,.docx,.txt,.md,.csv" className="hidden"
+        onChange={(e) => { handleFiles(e.target.files); e.target.value = '' }} />
+
+      {/* ── SOURCES PANEL ── */}
+      <section
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={onDrop}
+        className={`w-[300px] shrink-0 flex flex-col rounded-2xl bg-white dark:bg-[#1C1E1B] border overflow-hidden transition-colors ${dragOver ? 'border-[#176B5B] dark:border-[#38A18C] ring-2 ring-[#176B5B]/30' : 'border-[#E2DED5] dark:border-[#30332B]'}`}
+      >
+        <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+          <h2 className="text-[15px] font-semibold flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-[#176B5B] dark:text-[#38A18C]" /> Sources
+          </h2>
+          <span className="text-[11px] font-mono text-[#A09E96] dark:text-[#777970]">{sources.length}</span>
+        </div>
+
+        <div className="px-4 pb-3">
+          <button onClick={() => fileInputRef.current?.click()}
+            className="w-full h-9 rounded-full bg-[#176B5B] hover:bg-[#13584B] text-white text-[13px] font-medium flex items-center justify-center gap-1.5 transition-colors shadow-sm">
+            <Plus className="w-4 h-4" /> Add sources
+          </button>
+        </div>
+
+        {hasSources && (
+          <div className="px-4 pb-2 flex items-center justify-between text-[11px]">
+            <button onClick={toggleSelectAll} className="font-mono uppercase tracking-wider text-[#77766F] dark:text-[#A6A69D] hover:text-[#176B5B] dark:hover:text-[#38A18C] transition-colors">
+              {allSelected ? 'Deselect all' : 'Select all'}
+            </button>
+            <span className="font-mono text-[#A09E96] dark:text-[#777970]">{selectedCount} selected</span>
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-1.5">
+          {loadingSources && (
+            <div className="flex items-center justify-center py-10 text-[#A09E96]"><Loader2 className="w-5 h-5 animate-spin" /></div>
+          )}
+          {!loadingSources && !hasSources && (
+            <button onClick={() => fileInputRef.current?.click()} className="w-full mt-2 rounded-xl border-2 border-dashed border-[#E2DED5] dark:border-[#34362F] px-4 py-8 flex flex-col items-center gap-2 text-center hover:border-[#176B5B]/50 transition-colors">
+              <UploadCloud className="w-7 h-7 text-[#A09E96] dark:text-[#777970]" />
+              <span className="text-[12px] text-[#77766F] dark:text-[#A6A69D]">Drop PDFs, DOCX or TXT here<br />to ground your answers</span>
+            </button>
+          )}
+          {sources.map((s) => {
+            const selected = selectedIds.has(s.id)
+            return (
+              <div key={s.id} className={`group flex items-center gap-2.5 px-2.5 py-2 rounded-xl border transition-colors ${selected ? 'bg-[#F1F7F5] dark:bg-[#16211D] border-[#CDE5DD] dark:border-[#28423C]' : 'bg-transparent border-transparent hover:bg-[#F7F6F2] dark:hover:bg-[#242620]'}`}>
+                <button onClick={() => toggleSelect(s.id)} disabled={s.status !== 'indexed'}
+                  className={`w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 transition-colors ${selected ? 'bg-[#176B5B] border-[#176B5B]' : 'border-[#C7C3B9] dark:border-[#4a4d43]'} disabled:opacity-40`}>
+                  {selected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                </button>
+                <span className="w-7 h-7 rounded-md bg-[#176B5B]/10 dark:bg-[#176B5B]/25 text-[#176B5B] dark:text-[#38A18C] text-[8px] font-mono font-bold flex items-center justify-center shrink-0">
+                  {fileGlyph(s.type)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12.5px] font-medium truncate">{s.name}</p>
+                  <p className="text-[10px] font-mono text-[#A09E96] dark:text-[#777970]">
+                    {s.status === 'uploading' ? 'Indexing…' : s.status === 'error' ? 'Failed' : `${s.chunks} chunks`}
+                  </p>
+                </div>
+                {s.status === 'uploading'
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin text-[#176B5B] shrink-0" />
+                  : <button onClick={() => handleDelete(s.id)} className="opacity-0 group-hover:opacity-100 text-[#A09E96] hover:text-[#BA1A1A] transition-all shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>}
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="px-4 py-2.5 border-t border-[#E2DED5] dark:border-[#30332B] flex items-center gap-1.5 text-[10px] font-mono text-[#A09E96] dark:text-[#777970]">
+          <ShieldCheck className="w-3.5 h-3.5 text-[#176B5B] dark:text-[#38A18C]" />
+          Local enclave · Zero egress
+        </div>
+      </section>
+
+      {/* ── CHAT PANEL ── */}
+      <section className="flex-1 min-w-0 flex flex-col rounded-2xl bg-white dark:bg-[#1C1E1B] border border-[#E2DED5] dark:border-[#30332B] overflow-hidden">
+        <div className="px-6 h-14 flex items-center justify-between border-b border-[#E2DED5] dark:border-[#30332B] shrink-0">
+          <div>
+            <h1 className="text-[16px] font-semibold tracking-tight">Knowledge Base</h1>
+            <p className="text-[11px] font-mono text-[#77766F] dark:text-[#A6A69D]">
+              Grounded RAG · {selectedCount || 'all'} source{selectedCount === 1 ? '' : 's'} · Air-gapped
+            </p>
+          </div>
+          <span className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#176B5B]/10 text-[#176B5B] dark:text-[#38A18C] border border-[#176B5B]/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#176B5B] dark:bg-[#38A18C] pulse-dot" /> Local
+          </span>
+        </div>
+
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
+          <div className="max-w-[720px] mx-auto flex flex-col gap-6">
+            {messages.length === 0 && !isQuerying && (
+              <div className="flex flex-col items-center text-center pt-16 pb-8">
+                <div className="w-14 h-14 rounded-2xl bg-[#176B5B]/10 dark:bg-[#176B5B]/25 flex items-center justify-center mb-4">
+                  <Database className="w-7 h-7 text-[#176B5B] dark:text-[#38A18C]" />
+                </div>
+                <h3 className="text-[20px] font-semibold mb-1">{hasSources ? 'Ask your sources anything' : 'Add a source to get started'}</h3>
+                <p className="text-[13px] text-[#77766F] dark:text-[#A6A69D] max-w-sm">
+                  {hasSources ? 'Answers are grounded in your selected documents and cited back to the exact page.' : 'Upload manuals, SOPs or reports on the left. Everything is embedded and stored locally.'}
+                </p>
+              </div>
+            )}
+            {messages.map((m) => (
+              m.role === 'user' ? (
+                <div key={m.id} className="flex justify-end">
+                  <div className="max-w-[80%] rounded-2xl rounded-br-md bg-[#176B5B] text-white px-4 py-2.5 text-[14px] leading-relaxed">{m.text}</div>
+                </div>
+              ) : (
+                <div key={m.id} className={`rounded-2xl px-4 py-3.5 border ${m.isError ? 'bg-[#FEF2F2] dark:bg-[#2A1A1A] border-[#F3C9C9] dark:border-[#5A2A2A] text-[#BA1A1A] dark:text-[#F3A9A9]' : 'bg-[#FAF9F5] dark:bg-[#20221E] border-[#E2DED5] dark:border-[#30332B]'}`}>
+                  {!m.isError && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <Sparkles className="w-3.5 h-3.5 text-[#176B5B] dark:text-[#38A18C]" />
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-[#176B5B] dark:text-[#38A18C] font-semibold">Vault Synthesis</span>
+                      {m.evidenceQuality && <span className="text-[10px] font-mono text-[#A09E96] dark:text-[#777970]">· {m.evidenceQuality} evidence</span>}
                     </div>
-                  </div>{" "}
-                </div>{" "}
-              </div>{" "}
-            </section>{" "}
-          </div>{" "}
-        </div>{" "}
-      </main>{" "}
-      <footer className={"w-full bg-v-surface border-t border-v-border py-2 "}>
-        {" "}
-        <div
-          className={
-            "w-full px-6 flex items-center justify-between font-mono text-[11px] text-v-text-dim"
-          }
-        >
-          {" "}
-          <span className={""} data-i18n={"footer.kernel"}>
-            VAULT KERNEL v4.19-AIRGAP
-          </span>{" "}
-          <div className={"flex items-center gap-4"}>
-            {" "}
-            <span className={""}>MEM: 128GB LOCK</span>{" "}
-            <span className={""}>SEC: LEVEL-5</span>{" "}
-            <span className={""} data-i18n={"footer.egress"}>
-              ZERO-EGRESS VERIFIED
-            </span>{" "}
-          </div>{" "}
-        </div>{" "}
-      </footer>{" "}
+                  )}
+                  <div className="text-[14px] leading-relaxed knowledge-prose"><MarkdownMessage content={m.text} /></div>
+                  {m.citations?.length > 0 && (
+                    <NotebookLMCitations citations={m.citations} onSelectCitation={(c, i) => setActiveCitation({ citation: c, index: i })} />
+                  )}
+                  {!m.isError && (m.model || m.durationMs != null) && (
+                    <div className="mt-2.5 pt-2 border-t border-[#E2DED5] dark:border-[#30332B] flex items-center gap-3 text-[10px] font-mono text-[#A09E96] dark:text-[#777970]">
+                      {m.model && <span>{m.model}</span>}
+                      {m.durationMs != null && <span>{Math.round(m.durationMs)} ms</span>}
+                      {m.tokensUsed != null && <span>{m.tokensUsed} tok</span>}
+                    </div>
+                  )}
+                </div>
+              )
+            ))}
+            {isQuerying && (
+              <div className="rounded-2xl px-4 py-3.5 border bg-[#FAF9F5] dark:bg-[#20221E] border-[#E2DED5] dark:border-[#30332B]">
+                <div className="flex items-center gap-2 text-[13px] text-[#77766F] dark:text-[#A6A69D]">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#176B5B] dark:text-[#38A18C]" />
+                  {statusText || 'Synthesizing grounded answer…'}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="px-6 pb-5 pt-2 shrink-0">
+          <div className="max-w-[720px] mx-auto">
+            {messages.length === 0 && hasSources && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {SUGGESTED.map((s) => (
+                  <button key={s} onClick={() => runQuery(s)} disabled={isQuerying}
+                    className="text-[12px] px-3 py-1.5 rounded-full border border-[#E2DED5] dark:border-[#30332B] text-[#77766F] dark:text-[#A6A69D] hover:border-[#176B5B] hover:text-[#176B5B] dark:hover:text-[#38A18C] transition-colors disabled:opacity-40">
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+            <form onSubmit={(e) => { e.preventDefault(); runQuery() }}
+              className="flex items-end gap-2 rounded-2xl border border-[#E2DED5] dark:border-[#30332B] bg-[#FAF9F5] dark:bg-[#20221E] px-2 py-2 focus-within:border-[#176B5B] dark:focus-within:border-[#38A18C] transition-colors">
+              <button type="button" onClick={() => fileInputRef.current?.click()}
+                className="w-9 h-9 shrink-0 rounded-xl flex items-center justify-center text-[#77766F] dark:text-[#A6A69D] hover:bg-[#176B5B]/10 hover:text-[#176B5B] dark:hover:text-[#38A18C] transition-colors" title="Add source">
+                <Plus className="w-5 h-5" />
+              </button>
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runQuery() } }}
+                rows={1}
+                placeholder={hasSources ? 'Ask anything about your sources…' : 'Add a source to start asking…'}
+                disabled={!hasSources || isQuerying}
+                className="flex-1 resize-none bg-transparent outline-none text-[14px] leading-relaxed py-2 max-h-32 placeholder:text-[#A09E96] dark:placeholder:text-[#777970] disabled:opacity-50"
+              />
+              <span className="text-[10px] font-mono text-[#A09E96] dark:text-[#777970] pb-2.5 shrink-0 hidden sm:block">
+                {selectedCount || sources.length} src
+              </span>
+              <button type="submit" disabled={!input.trim() || isQuerying}
+                className="w-9 h-9 shrink-0 rounded-xl bg-[#176B5B] hover:bg-[#13584B] text-white flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                {isQuerying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-5 h-5" />}
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      {/* ── STUDIO PANEL ── */}
+      <section className="w-[330px] shrink-0 flex flex-col rounded-2xl bg-white dark:bg-[#1C1E1B] border border-[#E2DED5] dark:border-[#30332B] overflow-hidden">
+        <div className="px-4 pt-4 pb-3 flex items-center gap-2 border-b border-[#E2DED5] dark:border-[#30332B]">
+          <Sparkles className="w-4 h-4 text-[#176B5B] dark:text-[#38A18C]" />
+          <h2 className="text-[15px] font-semibold">Studio</h2>
+        </div>
+
+        <div className="px-4 pt-3 pb-2">
+          <div className="grid grid-cols-2 gap-2">
+            {STUDIO_ACTIONS.map((a) => {
+              const Icon = a.icon
+              const busy = studioBusy === a.key
+              return (
+                <button key={a.key} onClick={() => handleStudio(a)} disabled={!hasSources || !!studioBusy}
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-[#E2DED5] dark:border-[#30332B] text-left hover:border-[#176B5B] dark:hover:border-[#38A18C] hover:bg-[#F1F7F5] dark:hover:bg-[#16211D] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                  {busy ? <Loader2 className="w-4 h-4 animate-spin text-[#176B5B] dark:text-[#38A18C] shrink-0" /> : <Icon className="w-4 h-4 text-[#176B5B] dark:text-[#38A18C] shrink-0" />}
+                  <span className="text-[12px] font-medium truncate">{a.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 pb-4 pt-1 space-y-2">
+          {studioNotes.length === 0 && (
+            <div className="mt-4 rounded-xl border border-dashed border-[#E2DED5] dark:border-[#34362F] px-4 py-8 text-center">
+              <p className="text-[12px] text-[#77766F] dark:text-[#A6A69D]">Studio output will be saved here.</p>
+              <p className="text-[11px] text-[#A09E96] dark:text-[#777970] mt-1">Generate a summary, timeline or quiz from your sources.</p>
+            </div>
+          )}
+          {studioNotes.map((note) => (
+            <div key={note.id} className="group rounded-xl border border-[#E2DED5] dark:border-[#30332B] bg-[#FAF9F5] dark:bg-[#20221E] p-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[12px] font-semibold">{note.title}</span>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => copyText(note.content)} className="p-1 rounded-md text-[#A09E96] hover:text-[#176B5B] dark:hover:text-[#38A18C]" title="Copy"><Copy className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => setStudioNotes((prev) => prev.filter((n) => n.id !== note.id))} className="p-1 rounded-md text-[#A09E96] hover:text-[#BA1A1A]" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+              </div>
+              <button onClick={() => setExpandedNote(note)} className="text-left w-full">
+                <p className="text-[11.5px] leading-relaxed text-[#4A4B47] dark:text-[#C7C6BE] line-clamp-4 whitespace-pre-wrap">{note.content}</p>
+                <span className="text-[10px] font-mono text-[#176B5B] dark:text-[#38A18C] mt-1.5 inline-block">Expand · {note.ts}</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <AnimatePresence>
+        {activeCitation && (
+          <CitationDrawer
+            citation={activeCitation.citation}
+            citationIndex={activeCitation.index}
+            onClose={() => setActiveCitation(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {expandedNote && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setExpandedNote(null)}
+            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.96, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-2xl bg-white dark:bg-[#1C1E1B] border border-[#E2DED5] dark:border-[#30332B] shadow-2xl overflow-hidden"
+            >
+              <div className="px-5 h-14 flex items-center justify-between border-b border-[#E2DED5] dark:border-[#30332B] shrink-0">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#176B5B] dark:text-[#38A18C]" />
+                  <h3 className="text-[15px] font-semibold">{expandedNote.title}</h3>
+                  <span className="text-[10px] font-mono text-[#A09E96] dark:text-[#777970]">{expandedNote.ts}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => copyText(expandedNote.content)} className="p-1.5 rounded-lg text-[#A09E96] hover:text-[#176B5B] dark:hover:text-[#38A18C]" title="Copy"><Copy className="w-4 h-4" /></button>
+                  <button onClick={() => setExpandedNote(null)} className="p-1.5 rounded-lg text-[#A09E96] hover:text-[#20211F] dark:hover:text-[#ECEAE3]" title="Close"><X className="w-4 h-4" /></button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto px-5 py-4 knowledge-prose text-[14px] leading-relaxed">
+                <MarkdownMessage content={expandedNote.content} />
+                {expandedNote.citations?.length > 0 && (
+                  <NotebookLMCitations citations={expandedNote.citations} onSelectCitation={(c, i) => { setExpandedNote(null); setActiveCitation({ citation: c, index: i }) }} />
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
-  );
+  )
 }
