@@ -363,6 +363,9 @@ def create_app() -> FastAPI:
     app.include_router(models_api.router)
     app.include_router(documents_api.router)
     app.include_router(knowledge_api.router)
+    
+    from app.api import retrieval
+    app.include_router(retrieval.router)
 
     return app
 
