@@ -72,6 +72,7 @@ export default function ChatScreen({ onNavigate }) {
   // Model selection (composer dropdown): 'auto' lets the agent route.
   const [selectedModel, setSelectedModel] = useState('auto');
   const [availableModels, setAvailableModels] = useState([]);
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
 
   // File upload & NotebookLM citation states
   const [attachedFile, setAttachedFile] = useState(null); // { type, file, name, size, previewUrl, base64Data, mediaType, status, documentId, chunks, error }
@@ -87,6 +88,7 @@ export default function ChatScreen({ onNavigate }) {
   const chatBottomRef = useRef(null);
   const inputRef = useRef(null);
   const settingsPopoverRef = useRef(null);
+  const modelDropdownRef = useRef(null);
   // Tracks which chat's messages are currently loaded, so programmatic
   // navigation to a freshly-created chat does not wipe pending messages.
   const loadedChatIdRef = useRef(null);
@@ -120,12 +122,15 @@ export default function ChatScreen({ onNavigate }) {
       if (settingsPopoverRef.current && !settingsPopoverRef.current.contains(e.target)) {
         setIsSettingsOpen(false);
       }
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(e.target)) {
+        setIsModelDropdownOpen(false);
+      }
     };
-    if (isSettingsOpen) {
+    if (isSettingsOpen || isModelDropdownOpen) {
       document.addEventListener('click', handleOutsideClick);
     }
     return () => document.removeEventListener('click', handleOutsideClick);
-  }, [isSettingsOpen]);
+  }, [isSettingsOpen, isModelDropdownOpen]);
 
   // Initial Theme & Backend Health Verification
   useEffect(() => {
@@ -661,16 +666,18 @@ export default function ChatScreen({ onNavigate }) {
                     )}
 
                     {/* llama.cpp-style Message Footer (Pill, Metrics, Action Buttons) */}
-                    <div className="border-t border-[#E2DED5]/60 dark:border-[#34362F]/60 pt-1">
-                      <LlamaMessageFooter
-                        message={m}
-                        onCopy={handleCopy}
-                        onEdit={handleEdit}
-                        onRegenerate={handleRegenerate}
-                        onBranch={handleBranch}
-                        onDelete={handleDelete}
-                      />
-                    </div>
+                    {!m.isError && (
+                      <div className="border-t border-[#E2DED5]/60 dark:border-[#34362F]/60 pt-1">
+                        <LlamaMessageFooter
+                          message={m}
+                          onCopy={handleCopy}
+                          onEdit={handleEdit}
+                          onRegenerate={handleRegenerate}
+                          onBranch={handleBranch}
+                          onDelete={handleDelete}
+                        />
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               );
@@ -833,24 +840,43 @@ export default function ChatScreen({ onNavigate }) {
 
               <div className="flex items-center space-x-3">
                 {/* Model Selection Dropdown */}
-                <div className="relative inline-flex items-center">
-                  <select
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
+                <div className="relative inline-flex items-center" ref={modelDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => !isSending && setIsModelDropdownOpen(!isModelDropdownOpen)}
                     disabled={isSending}
                     title="Select model"
-                    className="appearance-none bg-transparent border border-[#E2DED5] dark:border-[#34362F] rounded-[5px] pl-2 pr-6 py-0.5 font-mono text-[11px] text-[#77766F] dark:text-[#A6A69D] hover:text-[#176B5B] dark:hover:text-[#38A18C] hover:border-[#176B5B]/50 focus:outline-none focus:border-[#176B5B] cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center justify-between min-w-[110px] max-w-[150px] bg-transparent border border-[#E2DED5] dark:border-[#34362F] rounded-[5px] pl-2 pr-1.5 py-0.5 font-mono text-[11px] text-[#77766F] dark:text-[#A6A69D] hover:text-[#176B5B] dark:hover:text-[#38A18C] hover:border-[#176B5B]/50 focus:outline-none focus:border-[#176B5B] cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <option value="auto">Auto (route)</option>
-                    {availableModels.map((m) => (
-                      <option key={m.key} value={m.key}>
-                        {m.display_name || m.key}
-                      </option>
-                    ))}
-                  </select>
-                  <svg className="w-3 h-3 absolute right-1.5 pointer-events-none text-[#A09E96] dark:text-[#777970]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 16 16">
-                    <polyline points="4 6 8 10 12 6"></polyline>
-                  </svg>
+                    <span className="truncate mr-2 text-left">
+                      {selectedModel === 'auto' ? 'Auto (route)' : (availableModels.find(m => m.key === selectedModel)?.display_name || selectedModel)}
+                    </span>
+                    <svg className={`w-3 h-3 shrink-0 transition-transform ${isModelDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 16 16">
+                      <polyline points="4 6 8 10 12 6"></polyline>
+                    </svg>
+                  </button>
+
+                  {isModelDropdownOpen && (
+                    <div className="absolute bottom-[calc(100%+4px)] left-0 w-[160px] bg-[#FFFFFF] dark:bg-[#1C1E1B] border border-[#E2DED5] dark:border-[#34362F] rounded-md shadow-lg py-1 z-50">
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedModel('auto'); setIsModelDropdownOpen(false); }}
+                        className={`w-full text-left px-3 py-1.5 font-mono text-[11px] hover:bg-[#F0EEE8] dark:hover:bg-[#242620] ${selectedModel === 'auto' ? 'text-[#176B5B] dark:text-[#38A18C] bg-[#F8E9DF]/50 dark:bg-[#3A2921]/50' : 'text-[#20211F] dark:text-[#ECEAE3]'}`}
+                      >
+                        Auto (route)
+                      </button>
+                      {availableModels.map((m) => (
+                        <button
+                          key={m.key}
+                          type="button"
+                          onClick={() => { setSelectedModel(m.key); setIsModelDropdownOpen(false); }}
+                          className={`w-full text-left px-3 py-1.5 font-mono text-[11px] hover:bg-[#F0EEE8] dark:hover:bg-[#242620] ${selectedModel === m.key ? 'text-[#176B5B] dark:text-[#38A18C] bg-[#F8E9DF]/50 dark:bg-[#3A2921]/50' : 'text-[#20211F] dark:text-[#ECEAE3]'}`}
+                        >
+                          {m.display_name || m.key}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <span className="font-mono text-[10.5px] text-[#77766F] dark:text-[#A6A69D] select-none">
                   {/* <span>{t.btn_return}</span> */}

@@ -39,10 +39,4 @@ class DummyLocalModel(ModelProvider):
         )
 
     def generate(self, request: GenerationRequest) -> GenerationResponse:
-        text = f"[Dummy Local Model] Processed prompt: {request.prompt}"
-        return GenerationResponse(
-            text=text,
-            model_name=self._name,
-            tokens_used=42,
-            metadata={"provider": "dummy", "local": True},
-        )
+        raise RuntimeError("Model is currently unavailable. Please ensure the local llama-server is running.\nPlease Contact the ADMIN")
