@@ -6,9 +6,10 @@ import os
 settings = get_settings()
 
 # Create data directory if it doesn't exist
-settings.document_db_path.parent.mkdir(parents=True, exist_ok=True)
+rag_db_path = settings.data_dir / "rag.db"
+rag_db_path.parent.mkdir(parents=True, exist_ok=True)
 
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{settings.document_db_path.absolute()}"
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{rag_db_path.absolute()}"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,

@@ -90,6 +90,7 @@ class ParserRegistry:
     def __init__(self):
         self._parsers: Dict[str, BaseParser] = {
             "txt": TxtParser(),
+            "csv": TxtParser(),
             "pdf": PdfParser(),
             "docx": DocxParser()
         }

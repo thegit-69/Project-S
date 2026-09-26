@@ -26,9 +26,9 @@ class RetrievalService:
             )
             
         # 3. Perform Vector Search
-        search_result = self.vector_store.client.search(
+        search_result = self.vector_store.client.query_points(
             collection_name=self.vector_store.collection_name,
-            query_vector=query_vector,
+            query=query_vector,
             query_filter=query_filter,
             limit=top_k,
             with_payload=True
@@ -36,7 +36,7 @@ class RetrievalService:
         
         # 4. Map back to Payloads
         payloads = []
-        for scored_point in search_result:
+        for scored_point in search_result.points:
             payloads.append(QdrantPayload(**scored_point.payload))
             
         return payloads

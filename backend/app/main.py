@@ -359,12 +359,13 @@ def create_app() -> FastAPI:
 
     # --- Route groups ---
     app.include_router(agent_api.router)
-    app.include_router(files_api.router)
+    # app.include_router(files_api.router)  # Disabled in favor of RAG files router
     app.include_router(models_api.router)
     app.include_router(documents_api.router)
     app.include_router(knowledge_api.router)
     
-    from app.api import retrieval, chat
+    from app.api import retrieval, chat, files as new_files_api
+    app.include_router(new_files_api.router)
     app.include_router(retrieval.router)
     app.include_router(chat.router)
 
