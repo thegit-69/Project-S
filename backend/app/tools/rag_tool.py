@@ -11,7 +11,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.knowledge.retrieval import KnowledgeRetriever
+import time
+from app.services.retrieval_service import RetrievalService
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class KnowledgeSearchTool:
         "Returns document excerpts with source attribution."
     )
 
-    def __init__(self, retriever: KnowledgeRetriever) -> None:
+    def __init__(self, retriever: RetrievalService) -> None:
         self._retriever = retriever
 
     def execute(
@@ -53,10 +54,12 @@ class KnowledgeSearchTool:
                 "error": "Empty query",
             }
 
+        start_time = time.time()
         try:
-            results, retrieval_time = self._retriever.retrieve(
+            results = self._retriever.search(
                 query=query, top_k=top_k
             )
+            retrieval_time = (time.time() - start_time) * 1000
         except Exception as exc:
             logger.error("Knowledge search failed: %s", exc)
             return {
@@ -71,13 +74,13 @@ class KnowledgeSearchTool:
             "query": query,
             "results": [
                 {
-                    "text": r.chunk.text,
+                    "text": r.content,
                     "document": r.filename,
-                    "page": r.page_number,
+                    "page": r.page,
                     "section": r.section,
-                    "score": round(r.score, 4),
                 }
                 for r in results
             ],
             "retrieval_time_ms": round(retrieval_time, 2),
         }
+

@@ -292,7 +292,7 @@ export async function listKnowledgeDocuments() {
  */
 export async function deleteKnowledgeDocument(documentId) {
   try {
-    const res = await fetch(`${API_BASE_URL}/knowledge/documents/${documentId}`, {
+    const res = await fetch(`${API_BASE_URL}/files/${documentId}`, {
       method: 'DELETE',
     });
     if (!res.ok) {
@@ -623,4 +623,61 @@ export async function exportStudioNote(note) {
     throw new Error(detail.detail || `Export failed (${res.status})`)
   }
   return await res.blob()
+}
+
+// ---------------------------------------------------------------------------
+// Library API
+// ---------------------------------------------------------------------------
+
+/**
+ * List all library files.
+ * @param {{ fileType?: string, search?: string }} opts
+ */
+export async function listLibraryFiles({ fileType = '', search = '' } = {}) {
+  const params = new URLSearchParams()
+  if (fileType) params.set('file_type', fileType)
+  if (search) params.set('search', search)
+  const qs = params.toString()
+  const res = await fetch(`${API_BASE_URL}/files/${qs ? `?${qs}` : ''}`)
+  if (!res.ok) throw new Error(`List files failed (${res.status})`)
+  return await res.json()  // { files: [], total: N }
+}
+
+/**
+ * Upload a file directly to the Library.
+ * @param {File} file
+ * @param {'library'|'knowledge'|'chat'} source
+ */
+export async function uploadToLibrary(file, source = 'library') {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`${API_BASE_URL}/files/upload?source=${encodeURIComponent(source)}`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}))
+    throw new Error(detail.detail || `Upload failed (${res.status})`)
+  }
+  return await res.json()  // { document_id, job_id, status, message }
+}
+
+/**
+ * Download a file as a Blob.
+ * @param {string} documentId
+ */
+export async function downloadLibraryFile(documentId) {
+  const res = await fetch(`${API_BASE_URL}/files/${documentId}/download`)
+  if (!res.ok) throw new Error(`Download failed (${res.status})`)
+  return await res.blob()
+}
+
+/**
+ * Delete a file from the Library (and its vectors).
+ * @param {string} documentId
+ */
+export async function deleteLibraryFile(documentId) {
+  const res = await fetch(`${API_BASE_URL}/files/${documentId}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`Delete failed (${res.status})`)
+  return await res.json()
 }

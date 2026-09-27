@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { MessageSquare, BookOpen, Code2, Cpu, Terminal, Settings } from 'lucide-react'
+import { MessageSquare, BookOpen, Code2, Cpu, Terminal, Settings, Library } from 'lucide-react'
 
 export const NAV = [
-  { id: 'chat', label: 'Workbench Chat', icon: MessageSquare },
-  { id: 'kb', label: 'Knowledge Base', icon: BookOpen },
-  { id: 'code', label: 'Code Studio', icon: Code2 },
-  { id: 'models', label: 'Models Registry', icon: Cpu },
-  { id: 'logs', label: 'Activity Logs', icon: Terminal },
+  { id: 'chat',    label: 'Workbench Chat',  icon: MessageSquare },
+  { id: 'kb',      label: 'Knowledge Base',  icon: BookOpen },
+  { id: 'library', label: 'Library',         icon: Library },
+  { id: 'code',    label: 'Code Studio',     icon: Code2 },
+  { id: 'models',  label: 'Models Registry', icon: Cpu },
+  { id: 'logs',    label: 'Activity Logs',   icon: Terminal },
 ]
 
 export default function Sidebar({ active, onSelect }) {

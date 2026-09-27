@@ -33,3 +33,13 @@ class VectorStoreService:
             collection_name=self.collection_name,
             points=points
         )
+
+    def delete_points(self, point_ids: List[str]):
+        """Delete Qdrant points by their UUIDs."""
+        if not point_ids:
+            return
+        from qdrant_client.models import PointIdsList
+        self.client.delete(
+            collection_name=self.collection_name,
+            points_selector=PointIdsList(points=point_ids),
+        )

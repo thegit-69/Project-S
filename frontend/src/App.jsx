@@ -5,15 +5,17 @@ import KnowledgeScreen from './screens/KnowledgeScreen.jsx'
 import CodeScreen from './screens/CodeScreen.jsx'
 import ModelsScreen from './screens/ModelsScreen.jsx'
 import LogsScreen from './screens/LogsScreen.jsx'
+import LibraryScreen from './screens/LibraryScreen.jsx'
 import Sidebar from './components/Sidebar.jsx'
 
 const ROUTE_MAP = {
-  chat: '/chat',
-  kb: '/knowledge',
+  chat:    '/chat',
+  kb:      '/knowledge',
   knowledge: '/knowledge',
-  code: '/code',
-  models: '/models',
-  logs: '/logs',
+  library: '/library',
+  code:    '/code',
+  models:  '/models',
+  logs:    '/logs',
 }
 
 export default function App() {
@@ -45,6 +47,7 @@ export default function App() {
           <Route path="/chat/:chatId" element={<ChatScreen onNavigate={handleNavigate} />} />
           <Route path="/knowledge" element={<KnowledgeScreen onNavigate={handleNavigate} />} />
           <Route path="/kb" element={<Navigate to="/knowledge" replace />} />
+          <Route path="/library" element={<LibraryScreen onNavigate={handleNavigate} />} />
           <Route path="/code" element={<CodeScreen onNavigate={handleNavigate} />} />
           <Route path="/models" element={<ModelsScreen onNavigate={handleNavigate} />} />
           <Route path="/logs" element={<LogsScreen onNavigate={handleNavigate} />} />

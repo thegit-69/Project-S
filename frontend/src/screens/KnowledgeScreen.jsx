@@ -17,6 +17,7 @@ import NotebookLMCitations from '../components/NotebookLMCitations.jsx'
 import CitationDrawer from '../components/CitationDrawer.jsx'
 import StudioPanel from '../components/StudioPanel.jsx'
 import { useStudio } from '../hooks/useStudio.js'
+import LibraryFilePicker from '../components/LibraryFilePicker.jsx'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -111,6 +112,7 @@ function KnowledgeScreenInner() {
   // ---- Studio ----
   const { notes, addNote, deleteNote, updateNote, pinMessage, clearAll } = useStudio()
   const [studioBusy, setStudioBusy] = useState(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   // ---- Resizable pane ----
   const [studioPanelWidth, setStudioPanelWidth] = useState(() => {
@@ -344,7 +346,7 @@ function KnowledgeScreenInner() {
 
         <div className="px-4 pb-3">
           <button
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => setPickerOpen(true)}
             className="w-full h-9 rounded-full bg-[#176B5B] hover:bg-[#13584B] text-white text-[13px] font-medium flex items-center justify-center gap-1.5 transition-colors shadow-sm"
           >
             <Plus className="w-4 h-4" /> Add sources
@@ -617,6 +619,33 @@ function KnowledgeScreenInner() {
           />
         )}
       </AnimatePresence>
+
+      {/* Library File Picker */}
+      <LibraryFilePicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        source="knowledge"
+        onSelect={(files) => {
+          files.forEach((f) => {
+            if (f.already_indexed) {
+              // Reuse without re-embedding
+              setSources((prev) => {
+                if (prev.some((s) => s.id === f.document_id)) return prev
+                return [...prev, {
+                  id: f.document_id,
+                  name: f.filename,
+                  type: f.file_type || 'doc',
+                  chunks: f.chunk_count || 0,
+                  status: 'indexed',
+                }]
+              })
+              setSelectedIds((prev) => new Set(prev).add(f.document_id))
+            } else if (f.file) {
+              handleFiles([f.file])
+            }
+          })
+        }}
+      />
     </div>
   )
 }

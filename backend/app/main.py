@@ -152,55 +152,25 @@ def create_app() -> FastAPI:
     tool_registry = _build_tool_registry(settings)
     verifier_registry = _build_verifier_registry()
     processor_registry = _build_processor_registry()
-    document_meta_store = DocumentMetadataStore(db_path=settings.document_db_path)
-    document_store = DocumentStore(
-        upload_dir=settings.upload_dir,
-        metadata_store=document_meta_store,
-    )
     network_monitor = NetworkMonitor(
         configured_endpoints={
             f"llm_{defn.key}": defn.base_url for defn in model_catalog.list()
         }
     )
 
-    # Knowledge subsystem components with persistence
-    chunking_config = ChunkingConfig(
-        chunk_size=settings.chunk_size,
-        chunk_overlap=settings.chunk_overlap,
-        min_chunk_size=settings.min_chunk_size,
-    )
-    chunking_service = ChunkingService(config=chunking_config)
+    # Create retrieval service for the agent tool using the new Qdrant vector store
+    from app.services.vector_store import VectorStoreService
+    from app.services.retrieval_service import RetrievalService
+    
     embedding_provider = _build_embedding_provider(settings)
-    embedding_config = embedding_provider.get_config()
-
-    # Determine similarity threshold: use neural-specific threshold when
-    # the neural provider is active, otherwise use the default.
-    effective_threshold = settings.similarity_threshold
-    if settings.embedding_provider == "neural":
-        effective_threshold = settings.neural_similarity_threshold
-
-    meta_store = KnowledgeMetadataStore(db_path=settings.knowledge_db_path)
-    from app.knowledge.qdrant_store import QdrantVectorStore
-    vector_store = QdrantVectorStore(
-        storage_dir=settings.vector_storage_path,
-        expected_dimension=embedding_config.dimension,
+    
+    new_vector_store = VectorStoreService(path=str(settings.data_dir / "qdrant"))
+    new_retrieval_service = RetrievalService(
+        vector_store=new_vector_store,
+        embedding_provider=embedding_provider
     )
-
-    ingestion_service = KnowledgeIngestionService(
-        chunking_service=chunking_service,
-        embedding_provider=embedding_provider,
-        vector_store=vector_store,
-        metadata_store=meta_store,
-        embedding_config=embedding_config,
-    )
-    retriever = KnowledgeRetriever(
-        embedding_provider=embedding_provider,
-        vector_store=vector_store,
-        ingestion_service=ingestion_service,
-        default_top_k=settings.retrieval_top_k,
-        similarity_threshold=effective_threshold,
-    )
-    knowledge_search_tool = KnowledgeSearchTool(retriever=retriever)
+    
+    knowledge_search_tool = KnowledgeSearchTool(retriever=new_retrieval_service)
     tool_registry.register(knowledge_search_tool)
 
     @asynccontextmanager
@@ -230,14 +200,6 @@ def create_app() -> FastAPI:
             model_selector=model_selector,
         )
 
-        # Wire up the RAG service (needs the model provider)
-        model_provider = model_registry.get("general")
-        rag_service = RAGService(
-            retriever=retriever,
-            model_provider=model_provider,
-            model_registry=model_registry,
-            default_similarity_threshold=settings.similarity_threshold,
-        )
 
         # Store on app.state for dependency injection in routes
         app.state.registry = model_registry
@@ -248,11 +210,6 @@ def create_app() -> FastAPI:
         app.state.settings = settings
         app.state.audit_service = audit_service
         app.state.processor_registry = processor_registry
-        app.state.document_store = document_store
-        app.state.knowledge_metadata = meta_store
-        app.state.knowledge_ingestion = ingestion_service
-        app.state.knowledge_retriever = retriever
-        app.state.rag_service = rag_service
         app.state.knowledge_search_tool = knowledge_search_tool
 
         logger.info(
@@ -263,12 +220,10 @@ def create_app() -> FastAPI:
             processor_registry.list_extensions(),
             settings.upload_dir,
             embedding_provider.get_name(),
-            type(vector_store).__name__,
+            type(new_vector_store).__name__,
         )
         yield
-        # Clean shutdown: close metadata stores
-        meta_store.close()
-        document_meta_store.close()
+        # Clean shutdown
         logger.info("Sovereign AI Workbench shutting down")
 
     app = FastAPI(
@@ -325,11 +280,10 @@ def create_app() -> FastAPI:
             if knowledge_ingest
             else 0
         )
-        knowledge_chunks = vector_store.count()
+        knowledge_chunks = new_vector_store.client.count(new_vector_store.collection_name).count if new_vector_store.client.collection_exists(new_vector_store.collection_name) else 0
 
         # Subsystem health details
-        vector_health = vector_store.get_health_info()
-        doc_health = document_store.get_store_health()
+        vector_health = {"status": "healthy", "provider": "qdrant"}
         audit_health = audit_service.get_health()
         network_compliance = network_monitor.check_compliance()
         embedding_health = (
@@ -350,7 +304,6 @@ def create_app() -> FastAPI:
             "embedding_provider": embedding_provider.get_name(),
             "subsystems": {
                 "vector_store": vector_health,
-                "document_store": doc_health,
                 "audit": audit_health,
                 "network": network_compliance,
                 "embeddings": embedding_health,
@@ -361,8 +314,6 @@ def create_app() -> FastAPI:
     app.include_router(agent_api.router)
     # app.include_router(files_api.router)  # Disabled in favor of RAG files router
     app.include_router(models_api.router)
-    app.include_router(documents_api.router)
-    app.include_router(knowledge_api.router)
     
     from app.api import retrieval, chat, files as new_files_api
     from app.api import studio as studio_api
@@ -370,6 +321,13 @@ def create_app() -> FastAPI:
     app.include_router(retrieval.router)
     app.include_router(chat.router)
     app.include_router(studio_api.router)
+
+    # Initialize database tables if missing
+    from app.db.init_db import init_db
+    try:
+        init_db()
+    except Exception as e:
+        logger.warning(f"Database initialization skipped or failed: {e}")
 
     return app
 

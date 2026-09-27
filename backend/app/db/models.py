@@ -37,6 +37,7 @@ class Document(Base):
     page_count = Column(Integer, default=0)
     sheet_count = Column(Integer, default=0)
     embedding_model_used = Column(String(255), nullable=True)
+    source = Column(String(50), nullable=True, default="library")  # 'chat' | 'knowledge' | 'library'
     created_at = Column(DateTime, default=datetime.utcnow)
     
     workspace = relationship("Workspace", back_populates="documents")

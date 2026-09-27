@@ -8,10 +8,11 @@ class DocumentService:
         self.db = db_session
 
     def create_document(self, original_filename: str, file_extension: str, mime_type: str, 
-                        size_bytes: int, storage_key: str, content_hash: str) -> Tuple[Document, IngestionJob]:
+                        size_bytes: int, storage_key: str, content_hash: str, document_id: str = None) -> Tuple[Document, IngestionJob]:
         """Creates a new document and an associated PENDING ingestion job."""
         
         doc = Document(
+            id=document_id or str(uuid.uuid4()),
             original_filename=original_filename,
             file_extension=file_extension,
             mime_type=mime_type,

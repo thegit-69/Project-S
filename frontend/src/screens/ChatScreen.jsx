@@ -9,6 +9,7 @@ import {
   pollDocumentStatus,
   listModelCatalog,
   streamChat,
+  uploadToLibrary,
 } from '../services/api.js'
 import MarkdownMessage from '../components/MarkdownMessage.jsx'
 import LlamaMessageFooter from '../components/LlamaMessageFooter.jsx'
@@ -505,6 +506,13 @@ export default function ChatScreen({ onNavigate }) {
         () => {
           setIsSending(false);
           setStatusText('');
+          // Post-vision library upload: silently persist the file after the model responds
+          if (attachmentToUse?.file) {
+            const src = attachmentToUse.type === 'image' ? 'chat' : 'chat'
+            uploadToLibrary(attachmentToUse.file, src).catch((e) =>
+              console.warn('[Library] Background upload failed:', e)
+            )
+          }
         },
         (err) => {
           throw err;
