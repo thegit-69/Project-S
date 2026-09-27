@@ -3,7 +3,7 @@ import hashlib
 import uuid
 import logging
 import io
-from fastapi import APIRouter, HTTPException, UploadFile, Depends, BackgroundTasks, Query
+from fastapi import APIRouter, HTTPException, UploadFile, Depends, BackgroundTasks, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -71,6 +71,7 @@ def _doc_to_response(d, job=None) -> FileInfoResponse:
 async def upload_file(
     file: UploadFile,
     background_tasks: BackgroundTasks,
+    request: Request,
     source: str = Query(default="library", description="Origin: 'library' | 'knowledge' | 'chat'"),
     db: Session = Depends(get_db),
 ):
@@ -111,7 +112,8 @@ async def upload_file(
     doc.source = source
     db.commit()
 
-    background_tasks.add_task(IngestionService.process_document_job, job.id)
+    registry = getattr(request.app.state, "registry", None)
+    background_tasks.add_task(IngestionService.process_document_job, job.id, registry)
 
     return FileUploadResponse(
         document_id=doc.id,

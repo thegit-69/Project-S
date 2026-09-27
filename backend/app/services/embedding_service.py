@@ -42,7 +42,10 @@ class LocalHuggingFaceEmbeddingProvider(BaseEmbeddingProvider):
             raise RuntimeError(f"Embedding generation failed: {e}")
             
     def get_dimension(self) -> int:
-        return self.model.get_sentence_embedding_dimension()
+        return self.model.get_embedding_dimension()
+        
+    def get_name(self) -> str:
+        return self.model_name_or_path
 
 
 _provider_instance = None

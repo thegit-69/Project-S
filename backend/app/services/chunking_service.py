@@ -15,36 +15,28 @@ class ChunkingService:
         chunks: List[QdrantPayload] = []
         
         for page in document.pages:
+            # Build the parent content by joining all block contents in this page
+            parent_content = "\n\n".join([b.content for b in page.blocks if b.content.strip()])
+            
             for block in page.blocks:
-                text = block.content
-                start = 0
-                while start < len(text) or (start == 0 and len(text) == 0):
-                    end = start + self.config.max_chars
-                    chunk_content = text[start:end]
+                if not block.content.strip():
+                    continue
                     
-                    if not chunk_content.strip():
-                        start += self.config.max_chars - self.config.overlap
-                        continue
-
-                    chunk_id = str(uuid.uuid4())
-                    
-                    payload = QdrantPayload(
-                        document_id=document.document_id,
-                        workspace_id=document.metadata.get("workspace_id"),
-                        chunk_id=chunk_id,
-                        filename=document.metadata.get("original_filename", "unknown"),
-                        file_type=document.metadata.get("source_type", "unknown"),
-                        page=page.page_number,
-                        section=block.section,
-                        block_type=block.block_type,
-                        content_type="text",
-                        content=chunk_content
-                    )
-                    chunks.append(payload)
-                    
-                    if end >= len(text):
-                        break
-                        
-                    start += self.config.max_chars - self.config.overlap
+                chunk_id = str(uuid.uuid4())
+                
+                payload = QdrantPayload(
+                    document_id=document.document_id,
+                    workspace_id=document.metadata.get("workspace_id"),
+                    chunk_id=chunk_id,
+                    filename=document.metadata.get("original_filename", "unknown"),
+                    file_type=document.metadata.get("source_type", "unknown"),
+                    page=page.page_number,
+                    section=block.section,
+                    block_type=block.block_type,
+                    content_type="text",
+                    content=block.content,
+                    parent_content=parent_content
+                )
+                chunks.append(payload)
 
         return chunks

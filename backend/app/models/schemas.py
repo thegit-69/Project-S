@@ -17,7 +17,7 @@ class NormalizedDocument(BaseModel):
     document_id: str
     metadata: Dict[str, Any] = Field(default_factory=dict)
     pages: List[NormalizedPage] = Field(default_factory=list)
-    assets: List[Dict[str, str]] = Field(default_factory=list)
+    assets: List[Dict[str, Any]] = Field(default_factory=list)
 
 class QdrantPayload(BaseModel):
     document_id: str
@@ -30,3 +30,4 @@ class QdrantPayload(BaseModel):
     block_type: str
     content_type: str
     content: str
+    parent_content: Optional[str] = None

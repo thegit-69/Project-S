@@ -161,8 +161,9 @@ def create_app() -> FastAPI:
     # Create retrieval service for the agent tool using the new Qdrant vector store
     from app.services.vector_store import VectorStoreService
     from app.services.retrieval_service import RetrievalService
+    from app.services.embedding_service import get_embedding_provider
     
-    embedding_provider = _build_embedding_provider(settings)
+    embedding_provider = get_embedding_provider()
     
     new_vector_store = VectorStoreService(path=str(settings.data_dir / "qdrant"))
     new_retrieval_service = RetrievalService(
@@ -215,11 +216,11 @@ def create_app() -> FastAPI:
         logger.info(
             "Sovereign AI Workbench started "
             "(tools=%s, processors=%s, upload_dir=%s, "
-            "embedding=%s, vector_store=%s)",
+            "embedding=MiniLM-%d, vector_store=%s)",
             tool_registry.list_tools(),
             processor_registry.list_extensions(),
             settings.upload_dir,
-            embedding_provider.get_name(),
+            embedding_provider.get_dimension(),
             type(new_vector_store).__name__,
         )
         yield
