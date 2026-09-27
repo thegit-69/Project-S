@@ -334,11 +334,15 @@ def create_app() -> FastAPI:
     from app.api import retrieval, chat, files as new_files_api
     from app.api import studio as studio_api
     from app.api import workflows as workflows_api
+    from app.api import execution as execution_api
+    from app.api import codegen as codegen_api
     app.include_router(new_files_api.router)
     app.include_router(retrieval.router)
     app.include_router(chat.router)
     app.include_router(studio_api.router)
     app.include_router(workflows_api.router)
+    app.include_router(execution_api.router)
+    app.include_router(codegen_api.router)
 
     # Initialize database tables if missing
     from app.db.init_db import init_db

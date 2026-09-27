@@ -1,1547 +1,637 @@
-﻿import { useEffect, useRef } from "react";
+import { useState, useRef, useCallback, useEffect } from 'react'
+import Editor from '@monaco-editor/react'
+import { Terminal as XTerm } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Play, Loader2, Terminal, Sparkles, Send, FileCode2,
+  ChevronDown, ChevronRight, Trash2, Sun, Moon,
+  Cpu, Wifi, WifiOff, BotMessageSquare, Check, X,
+  Activity, GitBranch, Layers, AlertCircle
+} from 'lucide-react'
+import '@xterm/xterm/css/xterm.css'
 
-export default function CodeScreen({ onNavigate, hidden }) {
-  const rootRef = useRef(null);
-  const navRef = useRef(onNavigate);
-  navRef.current = onNavigate;
+const API_BASE = 'http://127.0.0.1:8000'
+const WS_BASE  = 'ws://127.0.0.1:8000'
+
+// ─── Initial demo messages ─────────────────────────────────────────────────────
+const DEMO_CODE = `import statistics
+
+def analyse_sensor_readings(readings: list[float]) -> dict:
+    """Analyse sensor readings and flag outliers beyond 3σ threshold."""
+    mean  = statistics.mean(readings)
+    stdev = statistics.stdev(readings)
+    threshold = 3 * stdev
+    outliers = [
+        {"index": i, "value": v, "deviation": round(abs(v - mean) / stdev, 2)}
+        for i, v in enumerate(readings)
+        if abs(v - mean) > threshold
+    ]
+    return {
+        "mean": round(mean, 4), "stdev": round(stdev, 4),
+        "threshold_3sigma": round(threshold, 4), "outliers": outliers,
+        "total_readings": len(readings), "flagged_count": len(outliers),
+    }
+
+sensor_data = [
+    102.3, 101.8, 103.1, 102.7, 101.5, 102.9, 103.4, 101.2,
+    102.6, 145.8,  # ← spike anomaly
+    103.0, 102.4, 101.9, 102.8, 103.2, 102.1, 101.7, 102.5,
+    103.3, 55.1,   # ← drop anomaly
+    102.0, 101.6, 103.5, 102.2, 101.4, 102.3, 103.1, 101.8,
+]
+
+results = analyse_sensor_readings(sensor_data)
+print(f"=== Sensor Analysis Report ===")
+print(f"Total Readings : {results['total_readings']}")
+print(f"Mean           : {results['mean']} units")
+print(f"Std Deviation  : {results['stdev']} units")
+print(f"3\u03c3 Threshold   : \xb1{results['threshold_3sigma']} units")
+print(f"Flagged        : {results['flagged_count']} anomaly/anomalies")
+print()
+if results['outliers']:
+    print("\u26a0  ANOMALIES DETECTED:")
+    for item in results['outliers']:
+        print(f"   Index {item['index']:>3}: {item['value']} units  ({item['deviation']}\u03c3 from mean)")
+else:
+    print("\u2713 All readings within normal range.")
+`
+
+const INITIAL_MESSAGES = [
+  { role: 'user', content: 'Write a Python script that calculates the standard deviation of a list of sensor readings and flags any value that exceeds 3\u03c3.' },
+  { role: 'agent', summary: 'Computes mean and 3\u03c3 threshold, flags anomalies in industrial sensor dataset. 2 spike anomalies detected at indices 9 and 19.' },
+]
+
+// ─── xterm themes ─────────────────────────────────────────────────────────────
+const XTERM_DARK = {
+  background: '#0d1117', foreground: '#c9d1d9', cursor: '#58a6ff',
+  black: '#0d1117', red: '#ff7b72', green: '#3fb950', yellow: '#d29922',
+  blue: '#58a6ff', magenta: '#bc8cff', cyan: '#39c5cf', white: '#b1bac4',
+  brightBlack: '#6e7681', brightRed: '#ffa198', brightGreen: '#56d364',
+  brightYellow: '#e3b341', brightBlue: '#79c0ff', brightMagenta: '#d2a8ff',
+  brightCyan: '#56d4dd', brightWhite: '#f0f6fc',
+}
+const XTERM_LIGHT = {
+  background: '#F7F6F3', foreground: '#1a1a2e', cursor: '#176B5B',
+  black: '#F7F6F3', red: '#cc3300', green: '#176B5B', yellow: '#b45309',
+  blue: '#1d4ed8', magenta: '#7c3aed', cyan: '#0d7490', white: '#4a4a4a',
+  brightBlack: '#8c8c8c', brightRed: '#ef4444', brightGreen: '#10b981',
+  brightYellow: '#f59e0b', brightBlue: '#3b82f6', brightMagenta: '#8b5cf6',
+  brightCyan: '#06b6d4', brightWhite: '#1a1a2e',
+}
+
+// ─── Diff viewer for Accept/Reject ────────────────────────────────────────────
+function DiffBanner({ pendingCode, onAccept, onReject, isDark }) {
+  const lines = pendingCode.split('\n').length
+  const d = isDark
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      className={`mx-0 px-4 py-2.5 flex items-center gap-3 border-b text-[12px] ${
+        d ? 'bg-emerald-950/60 border-emerald-800/50' : 'bg-[#EAF4F1] border-[#B2D8D0]'
+      }`}
+    >
+      <Sparkles className={`w-3.5 h-3.5 shrink-0 ${d ? 'text-emerald-400' : 'text-[#176B5B]'}`} />
+      <span className={`flex-1 font-medium ${d ? 'text-emerald-200' : 'text-[#176B5B]'}`}>
+        Qwen generated {lines} lines — accept or reject?
+      </span>
+      <button
+        onClick={onReject}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-medium transition-colors ${
+          d ? 'bg-[#161b22] border-[#30363d] text-[#8b949e] hover:border-red-700/50 hover:text-red-400'
+            : 'bg-white border-[#E2DED5] text-[#77766F] hover:border-red-300 hover:text-red-500'
+        }`}
+      >
+        <X className="w-3 h-3" /> Reject
+      </button>
+      <button
+        onClick={onAccept}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-semibold transition-colors ${
+          d ? 'bg-emerald-700 border-emerald-600 text-white hover:bg-emerald-600'
+            : 'bg-[#176B5B] border-[#176B5B] text-white hover:bg-[#145748]'
+        }`}
+      >
+        <Check className="w-3 h-3" /> Accept
+      </button>
+    </motion.div>
+  )
+}
+
+// ─── Agent message bubble ──────────────────────────────────────────────────────
+function AgentMessage({ msg, isDark }) {
+  const d = isDark
+  if (msg.role === 'user') {
+    return (
+      <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="flex justify-end gap-2">
+        <div className={`max-w-[85%] px-3 py-2 rounded-xl text-[12px] leading-relaxed border ${
+          d ? 'bg-emerald-950/50 border-emerald-800/40 text-emerald-100'
+            : 'bg-[#EAF4F1] border-[#B2D8D0] text-[#176B5B]'
+        }`}>
+          {msg.content}
+        </div>
+        <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${d ? 'bg-[#30363d]' : 'bg-[#E2DED5]'}`}>
+          <span className={`text-[9px] font-bold ${d ? 'text-[#8b949e]' : 'text-[#77766F]'}`}>U</span>
+        </div>
+      </motion.div>
+    )
+  }
+
+  // Agent message — summary only
+  return (
+    <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2">
+      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shrink-0 mt-0.5">
+        <Sparkles className="w-3 h-3 text-white" />
+      </div>
+      <div className={`max-w-[88%] flex flex-col gap-1`}>
+        <div className={`px-3 py-2 rounded-xl text-[12px] leading-relaxed border ${
+          d ? 'bg-[#0d1117] border-[#21262d] text-[#c9d1d9]' : 'bg-white border-[#E2DED5] text-[#20211F]'
+        }`}>
+          {msg.summary || msg.content}
+        </div>
+        {msg.streaming && (
+          <div className={`flex items-center gap-1.5 text-[10px] ${d ? 'text-[#6e7681]' : 'text-[#77766F]'}`}>
+            <Loader2 className="w-2.5 h-2.5 animate-spin" />
+            <span>Streaming to editor…</span>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  )
+}
+
+// ─── xterm component ──────────────────────────────────────────────────────────
+function SandboxTerminal({ isDark, termRef, fitRef }) {
+  const divRef = useRef(null)
 
   useEffect(() => {
-    const root = rootRef.current;
+    if (!divRef.current) return
+    const term = new XTerm({
+      theme: isDark ? XTERM_DARK : XTERM_LIGHT,
+      fontFamily: "'JetBrains Mono','Fira Code','Cascadia Code',monospace",
+      fontSize: 12, lineHeight: 1.5, cursorBlink: true, cursorStyle: 'bar',
+      scrollback: 5000, convertEol: true,
+    })
+    const fit = new FitAddon()
+    term.loadAddon(fit)
+    term.open(divRef.current)
+    fit.fit()
+    termRef.current = term
+    fitRef.current  = fit
 
-    // Translations dictionary strictly adhering to localization specifications
-    const translations = {
-      en: {
-        nav_chat: "Chat",
-        nav_knowledge: "Knowledge",
-        nav_code: "Code",
-        nav_models: "Models",
-        nav_logs: "Logs",
-        offline_badge: "OFFLINE",
-        settings_title: "PREFERENCES",
-        theme_label: "THEME",
-        language_label: "LANGUAGE",
-        explorer_header: "EXPLORER",
-        ctrl_new_file: "New Isolated File",
-        ctrl_new_folder: "New Folder",
-        ctrl_refresh: "Refresh Tree",
-        sandboxed_badge: "SANDBOXED",
-        agent_header: "AI AGENT",
-        agent_tag: "LOCAL Â· CODER",
-        task_title: "CURRENT TASK",
-        task_sync: "AUTO-SYNC",
-        task_content:
-          "Generate an automated script to parse industrial sensor inspection records and flag variance spikes over 3Ïƒ threshold.",
-        plan_title: "EXECUTION PLAN",
-        plan_step_1: "Read inspection dataset",
-        plan_step_2: "Generate statistical routine",
-        plan_step_3: "Execute inside cgroup sandbox",
-        plan_step_4: "Verify zero-egress invariants",
-        stream_title: "STREAM TELEMETRY",
-        btn_apply: "Apply Changes",
-        btn_run: "Run Sandbox",
-        btn_interrupt: "Interrupt",
-        term_tab_terminal: "TERMINAL",
-        term_tab_problems: "PROBLEMS",
-        term_tab_output: "OUTPUT",
-        term_tab_enclave: "ENCLAVE SANDBOX",
-        term_status_problems: "Problems: 0",
-        term_status_warnings: "Warnings: 1 (pandas FutureType)",
-        term_status_exec: "Execution: 1.82s",
-      },
-    };
+    term.writeln('\x1b[2m╭──────────────────────────────────────────╮\x1b[0m')
+    term.writeln('\x1b[2m│  Sovereign Workbench · Docker Sandbox    │\x1b[0m')
+    term.writeln('\x1b[2m╰──────────────────────────────────────────╯\x1b[0m')
+    term.writeln('\x1b[2mPress Run ▶ to execute in sandbox.\x1b[0m\n')
 
-    // State Management
-    const STORAGE_THEME_KEY = "vault_ide_theme";
-    const STORAGE_LANG_KEY = "vault_ide_lang";
+    const ro = new ResizeObserver(() => fit.fit())
+    ro.observe(divRef.current)
+    return () => { ro.disconnect(); term.dispose(); termRef.current = null; fitRef.current = null }
+  }, [])
 
-    let currentTheme = localStorage.getItem(STORAGE_THEME_KEY) || "light";
-    let currentLang = localStorage.getItem(STORAGE_LANG_KEY) || "en";
+  useEffect(() => {
+    if (termRef.current) termRef.current.options.theme = isDark ? XTERM_DARK : XTERM_LIGHT
+  }, [isDark])
 
-    // Elements
-    const settingsBtn = root.querySelector("#settings-trigger");
-    const settingsPopover = root.querySelector("#settings-popover");
-    const themeBtns = document.querySelectorAll("[data-theme]");
-    const langBtns = document.querySelectorAll("[data-lang]");
+  return <div ref={divRef} className="w-full h-full" style={{ padding: '6px' }} />
+}
 
-    // Toggle Settings Popover
-    if (settingsBtn && settingsPopover) {
-      settingsBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        settingsPopover.classList.toggle("hidden");
-      });
+// ─── Main component ───────────────────────────────────────────────────────────
+export default function CodeScreen() {
+  const [isDark, setIsDark]           = useState(true)
+  const [code, setCode]               = useState(DEMO_CODE)
+  const [pendingCode, setPendingCode] = useState(null)   // code waiting for accept/reject
+  const [messages, setMessages]       = useState(INITIAL_MESSAGES)
+  const [userInput, setUserInput]     = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [isRunning, setIsRunning]     = useState(false)
+  const [dockerOk, setDockerOk]       = useState(null)
+  const [qwenOk, setQwenOk]           = useState(null)
+  const [outputOpen, setOutputOpen]   = useState(false)
+  // Resizable chat panel
+  const [chatWidth, setChatWidth]     = useState(320)
+  const isResizing                    = useRef(false)
+  const chatEndRef  = useRef(null)
+  const termRef     = useRef(null)
+  const fitRef      = useRef(null)
+  const wsRef       = useRef(null)
+  const abortRef    = useRef(null)
 
-      document.addEventListener("click", (e) => {
-        if (
-          !settingsPopover.contains(e.target) &&
-          !settingsBtn.contains(e.target)
-        ) {
-          settingsPopover.classList.add("hidden");
-        }
-      });
+  // Drag-to-resize handler for the chat panel
+  const startResize = useCallback((e) => {
+    e.preventDefault()
+    isResizing.current = true
+    const startX = e.clientX
+    const startW = chatWidth
+    const onMove = (mv) => {
+      if (!isResizing.current) return
+      const delta = startX - mv.clientX
+      const next  = Math.min(520, Math.max(220, startW + delta))
+      setChatWidth(next)
     }
+    const onUp = () => {
+      isResizing.current = false
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [chatWidth])
 
-    // Apply Theme
-    function applyTheme(theme) {
-      currentTheme = theme;
-      localStorage.setItem(STORAGE_THEME_KEY, theme);
 
-      const root = document.documentElement;
-      if (theme === "system") {
-        const prefersDark = window.matchMedia(
-          "(prefers-color-scheme: dark)",
-        ).matches;
-        root.classList.toggle("dark", prefersDark);
-        root.classList.toggle("light", !prefersDark);
-      } else if (theme === "dark") {
-        root.classList.add("dark");
-        root.classList.remove("light");
-      } else {
-        root.classList.remove("dark");
-        root.classList.add("light");
+  // ── Health checks ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    fetch(`${API_BASE}/api/execute/health`)
+      .then(r => r.json()).then(d => setDockerOk(d.docker_available)).catch(() => setDockerOk(false))
+    fetch(`${API_BASE}/api/codegen/health`)
+      .then(r => r.json()).then(d => setQwenOk(d.status === 'ok')).catch(() => setQwenOk(false))
+  }, [])
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, isGenerating])
+
+  // ── Generate code from Qwen via SSE, stream tokens to PENDING state ───────
+  const handleSend = useCallback(async () => {
+    if (!userInput.trim() || isGenerating) return
+    const prompt = userInput.trim()
+    setUserInput('')
+    setMessages(prev => [...prev, { role: 'user', content: prompt }])
+    setIsGenerating(true)
+
+    // Placeholder agent message
+    const agentIdx = Date.now()
+    setMessages(prev => [...prev, { role: 'agent', id: agentIdx, summary: '…', streaming: true }])
+
+    abortRef.current = new AbortController()
+    let accCode = ''
+    let summaryText = ''
+
+    try {
+      const res = await fetch(`${API_BASE}/api/codegen/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, max_tokens: 1500 }),
+        signal: abortRef.current.signal,
+      })
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+
+        // Parse SSE events from buffer
+        const parts = buf.split('\n\n')
+        buf = parts.pop() || ''
+
+        for (const part of parts) {
+          const eventLine = part.split('\n').find(l => l.startsWith('event: '))
+          const dataLine  = part.split('\n').find(l => l.startsWith('data: '))
+          if (!eventLine || !dataLine) continue
+
+          const eventType = eventLine.slice(7).trim()
+          const data = JSON.parse(dataLine.slice(6))
+
+          if (eventType === 'summary') {
+            summaryText = data
+            // Update the placeholder message with real summary
+            setMessages(prev => prev.map(m =>
+              m.id === agentIdx ? { ...m, summary: summaryText } : m
+            ))
+          } else if (eventType === 'token') {
+            accCode += data
+            // Stream token to PENDING editor (shown dimmed in Monaco)
+            setPendingCode(prev => (prev || '') + data)
+          } else if (eventType === 'done') {
+            break
+          } else if (eventType === 'error') {
+            setMessages(prev => prev.map(m =>
+              m.id === agentIdx
+                ? { ...m, summary: `⚠ Error: ${data}`, streaming: false }
+                : m
+            ))
+            setPendingCode(null)
+            break
+          }
+        }
       }
 
-      // Update buttons
-      themeBtns.forEach((btn) => {
-        if (btn.getAttribute("data-theme") === theme) {
-          btn.classList.add(
-            "bg-surface",
-            "shadow-sm",
-            "text-primary",
-            "font-semibold",
-          );
-          btn.classList.remove("text-on-surface");
-        } else {
-          btn.classList.remove(
-            "bg-surface",
-            "shadow-sm",
-            "text-primary",
-            "font-semibold",
-          );
-          btn.classList.add("text-on-surface");
-        }
-      });
+      // Mark streaming done
+      setMessages(prev => prev.map(m =>
+        m.id === agentIdx ? { ...m, streaming: false } : m
+      ))
+
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        setMessages(prev => prev.map(m =>
+          m.id === agentIdx
+            ? { ...m, summary: `⚠ Failed to reach Qwen. Is llama-server running on port 9090?`, streaming: false }
+            : m
+        ))
+        setPendingCode(null)
+      }
+    } finally {
+      setIsGenerating(false)
     }
+  }, [userInput, isGenerating])
 
-    // Apply Language
-    function applyLanguage(lang) {
-      if (!translations[lang]) lang = "en";
-      currentLang = lang;
-      localStorage.setItem(STORAGE_LANG_KEY, lang);
-      document.documentElement.lang = lang;
+  // Accept pending code → replaces editor content
+  const handleAccept = useCallback(() => {
+    if (pendingCode) setCode(pendingCode)
+    setPendingCode(null)
+  }, [pendingCode])
 
-      // Translate DOM elements
-      document.querySelectorAll("[data-i18n]").forEach((el) => {
-        const key = el.getAttribute("data-i18n");
-        if (translations[lang][key]) {
-          el.textContent = translations[lang][key];
-        }
-      });
+  // Reject pending code → discard, editor stays the same
+  const handleReject = useCallback(() => {
+    setPendingCode(null)
+    setMessages(prev => {
+      const copy = [...prev]
+      const last = copy[copy.length - 1]
+      if (last?.role === 'agent') copy[copy.length - 1] = { ...last, summary: last.summary + ' (rejected)' }
+      return copy
+    })
+  }, [])
 
-      // Translate Tooltips
-      const ctrlNewFile = root.querySelector("#ctrl-new-file");
-      const ctrlNewFolder = root.querySelector("#ctrl-new-folder");
-      const ctrlRefresh = root.querySelector("#ctrl-refresh");
-      if (ctrlNewFile) ctrlNewFile.title = translations[lang].ctrl_new_file;
-      if (ctrlNewFolder)
-        ctrlNewFolder.title = translations[lang].ctrl_new_folder;
-      if (ctrlRefresh) ctrlRefresh.title = translations[lang].ctrl_refresh;
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+  }
 
-      // Update buttons
-      langBtns.forEach((btn) => {
-        if (btn.getAttribute("data-lang") === lang) {
-          btn.classList.add(
-            "bg-surface",
-            "shadow-sm",
-            "text-primary",
-            "font-semibold",
-          );
-          btn.classList.remove("text-on-surface");
-        } else {
-          btn.classList.remove(
-            "bg-surface",
-            "shadow-sm",
-            "text-primary",
-            "font-semibold",
-          );
-          btn.classList.add("text-on-surface");
-        }
-      });
+  // ── Run via WebSocket → xterm.js ──────────────────────────────────────────
+  const handleRun = useCallback(() => {
+    if (isRunning || !code.trim()) return
+    setIsRunning(true)
+    setOutputOpen(true)
+    const term = termRef.current
+    if (term) {
+      term.write('\r\n\x1b[2m────────────────────────────────────\x1b[0m\r\n')
+      term.writeln(`\x1b[33m[System] Starting — ${new Date().toLocaleTimeString()}\x1b[0m`)
     }
-
-    // Event Listeners for theme choices
-    themeBtns.forEach((btn) => {
-      btn.addEventListener("click", () => {
-        applyTheme(btn.getAttribute("data-theme"));
-      });
-    });
-
-    // Event Listeners for lang choices
-    langBtns.forEach((btn) => {
-      btn.addEventListener("click", () => {
-        applyLanguage(btn.getAttribute("data-lang"));
-      });
-    });
-
-    // Listen for system theme change
-    window
-      .matchMedia("(prefers-color-scheme: dark)")
-      .addEventListener("change", () => {
-        if (currentTheme === "system") {
-          applyTheme("system");
-        }
-      });
-
-    // Initialize
-    applyTheme(currentTheme);
-    applyLanguage(currentLang);
-
-    const TARGETS = [
-      ["chat", ["chat"]],
-      ["kb", ["knowledge"]],
-      ["models", ["models"]],
-      ["code", ["code"]],
-      ["logs", ["logs", "activity"]],
-    ];
-    const sidebar = root.querySelector("aside");
-    if (sidebar) {
-      sidebar.querySelectorAll('a[href="#"]').forEach((a) => {
-        const key = [
-          a.id,
-          a.dataset.path,
-          a.dataset.i18nTitle,
-          a.getAttribute("title"),
-          a.getAttribute("aria-label"),
-          a.textContent,
-        ]
-          .join(" ")
-          .toLowerCase();
-        const hit = TARGETS.find(([, words]) =>
-          words.some((w) => key.includes(w)),
-        );
-        if (!hit) return;
-        a.addEventListener("click", (e) => {
-          e.preventDefault();
-          navRef.current && navRef.current(hit[0]);
-        });
-      });
+    if (wsRef.current) wsRef.current.close()
+    const ws = new WebSocket(`${WS_BASE}/api/execute/stream`)
+    wsRef.current = ws
+    ws.onopen  = () => ws.send(JSON.stringify({ code, timeout: 20 }))
+    ws.onmessage = e => { if (term) term.write(e.data) }
+    ws.onclose = () => { setIsRunning(false); wsRef.current = null }
+    ws.onerror = () => {
+      if (term) term.writeln('\r\n\x1b[31m[Error] WebSocket failed. Is the backend running?\x1b[0m')
+      setIsRunning(false)
     }
-    root.querySelectorAll("[data-onclick]").forEach((el) => {
-      el.addEventListener("click", () => {
-        eval(el.getAttribute("data-onclick"));
-      });
-    });
-  }, []);
+  }, [code, isRunning])
+
+  const handleStop = () => { wsRef.current?.close(); setIsRunning(false) }
+  const handleClear = () => termRef.current?.clear()
+
+  // ── Theme ─────────────────────────────────────────────────────────────────
+  const d   = isDark
+  const bg  = d ? 'bg-[#0d1117]'  : 'bg-[#F7F6F3]'
+  const srf = d ? 'bg-[#010409]'  : 'bg-white'
+  const bdr = d ? 'border-[#21262d]' : 'border-[#E2DED5]'
+  const txt = d ? 'text-[#c9d1d9]' : 'text-[#20211F]'
+  const sub = d ? 'text-[#6e7681]' : 'text-[#77766F]'
 
   return (
-    <div
-      ref={rootRef}
-      className={
-        "bg-background font-body-md text-on-surface antialiased selection:bg-primary-container selection:text-primary transition-colors duration-150 pl-16"
-      }
-      style={{ display: hidden ? "none" : undefined }}
-    >
-      <main className={"w-full pb-7 bg-background min-h-screen"}>
-        <div
-          className={
-            "flex flex-col w-full select-none bg-background text-on-surface overflow-hidden"
-          }
-          style={{ height: "calc(100vh - 1.75rem)" }}
-        >
-          {" "}
-          <div
-            className={
-              "flex flex-1 w-full min-h-0 divide-x divide-outline-variant overflow-hidden"
-            }
-          >
-            {" "}
-            <div
-              className={
-                "flex flex-col w-[220px] shrink-0 h-full bg-surface border-r border-outline-variant min-w-0"
-              }
-            >
-              <div
-                className={
-                  "h-8 px-space-sm flex items-center justify-between border-b border-outline-variant text-on-surface-variant shrink-0"
-                }
-              >
-                <span
-                  className={
-                    "font-label-sm text-label-sm tracking-wider uppercase text-on-surface font-semibold"
-                  }
-                  data-i18n={"explorer_header"}
-                >
-                  EXPLORER
-                </span>
-                <div className={"flex items-center space-x-1"}>
-                  <button
-                    className={
-                      "w-5 h-5 flex items-center justify-center hover:bg-surface-variant text-on-surface-variant hover:text-on-surface rounded transition-colors"
-                    }
-                    id={"ctrl-new-file"}
-                    title={"New Isolated File"}
-                  >
-                    <span className={"material-symbols-outlined text-[14px]"}>
-                      note_add
-                    </span>
-                  </button>
-                  <button
-                    className={
-                      "w-5 h-5 flex items-center justify-center hover:bg-surface-variant text-on-surface-variant hover:text-on-surface rounded transition-colors"
-                    }
-                    id={"ctrl-new-folder"}
-                    title={"New Folder"}
-                  >
-                    <span className={"material-symbols-outlined text-[14px]"}>
-                      create_new_folder
-                    </span>
-                  </button>
-                  <button
-                    className={
-                      "w-5 h-5 flex items-center justify-center hover:bg-surface-variant text-on-surface-variant hover:text-on-surface rounded transition-colors"
-                    }
-                    id={"ctrl-refresh"}
-                    title={"Refresh Tree"}
-                  >
-                    <span className={"material-symbols-outlined text-[14px]"}>
-                      refresh
-                    </span>
-                  </button>
-                  <button
-                    className={
-                      "w-5 h-5 flex items-center justify-center hover:bg-surface-variant text-on-surface-variant hover:text-on-surface rounded transition-colors"
-                    }
-                    title={"Collapse All"}
-                  >
-                    <span className={"material-symbols-outlined text-[14px]"}>
-                      collapse_all
-                    </span>
-                  </button>
-                </div>
-              </div>
-              <div
-                className={
-                  "px-space-sm py-1.5 flex items-center space-x-1.5 text-on-surface border-b border-outline-variant bg-background shrink-0"
-                }
-              >
-                <span
-                  className={
-                    "material-symbols-outlined text-[15px] text-on-surface-variant"
-                  }
-                >
-                  expand_more
-                </span>
-                <span
-                  className={
-                    "font-label-sm text-label-sm font-semibold tracking-wider text-on-surface uppercase font-mono"
-                  }
-                >
-                  VAULT-AGENT
-                </span>
-                <span
-                  className={
-                    "text-[10px] text-primary font-mono ml-auto font-medium"
-                  }
-                  data-i18n={"sandboxed_badge"}
-                >
-                  SANDBOXED
-                </span>
-              </div>
-              <div
-                className={
-                  "flex-1 overflow-y-auto py-1 font-mono text-code-md min-h-0 text-on-surface"
-                }
-              >
-                <div
-                  className={
-                    "flex items-center h-6 px-space-sm space-x-1 text-on-surface-variant hover:bg-surface-variant cursor-pointer"
-                  }
-                >
-                  <span
-                    className={
-                      "material-symbols-outlined text-[14px] text-on-surface-variant"
-                    }
-                  >
-                    expand_more
-                  </span>
-                  <span
-                    className={
-                      "material-symbols-outlined text-[15px] text-primary"
-                    }
-                  >
-                    folder
-                  </span>
-                  <span
-                    className={
-                      "text-xs tracking-normal text-on-surface font-mono"
-                    }
-                  >
-                    src
-                  </span>
-                </div>
-                <div
-                  className={
-                    "flex items-center h-6 pl-6 pr-2 space-x-1.5 bg-primary-container text-on-surface border-l-2 border-primary cursor-pointer"
-                  }
-                >
-                  <span
-                    className={
-                      "material-symbols-outlined text-[14px] text-primary"
-                    }
-                  >
-                    terminal
-                  </span>
-                  <span
-                    className={
-                      "text-xs truncate font-medium text-on-surface font-mono"
-                    }
-                  >
-                    main.py
-                  </span>
-                  <span
-                    className={"ml-auto w-1.5 h-1.5 rounded-full bg-primary"}
-                    title={"Unsaved alterations"}
-                  ></span>
-                </div>
-                <div
-                  className={
-                    "flex items-center h-6 pl-6 pr-2 space-x-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant cursor-pointer transition-colors"
-                  }
-                >
-                  <span
-                    className={
-                      "material-symbols-outlined text-[14px] text-outline"
-                    }
-                  >
-                    terminal
-                  </span>
-                  <span className={"text-xs truncate font-mono"}>
-                    analyzer.py
-                  </span>
-                </div>
-                <div
-                  className={
-                    "flex items-center h-6 pl-6 pr-2 space-x-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant cursor-pointer transition-colors"
-                  }
-                >
-                  <span
-                    className={
-                      "material-symbols-outlined text-[14px] text-outline"
-                    }
-                  >
-                    terminal
-                  </span>
-                  <span className={"text-xs truncate font-mono"}>
-                    parser.py
-                  </span>
-                </div>
-                <div
-                  className={
-                    "flex items-center h-6 px-space-sm space-x-1 text-on-surface-variant hover:bg-surface-variant cursor-pointer mt-1"
-                  }
-                >
-                  <span
-                    className={
-                      "material-symbols-outlined text-[14px] text-on-surface-variant"
-                    }
-                  >
-                    expand_more
-                  </span>
-                  <span
-                    className={
-                      "material-symbols-outlined text-[15px] text-on-surface-variant"
-                    }
-                  >
-                    folder
-                  </span>
-                  <span
-                    className={
-                      "text-xs tracking-normal text-on-surface font-mono"
-                    }
-                  >
-                    data
-                  </span>
-                </div>
-                <div
-                  className={
-                    "flex items-center h-6 pl-6 pr-2 space-x-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant cursor-pointer transition-colors"
-                  }
-                >
-                  <span
-                    className={
-                      "material-symbols-outlined text-[14px] text-outline"
-                    }
-                  >
-                    table_chart
-                  </span>
-                  <span className={"text-xs truncate font-mono"}>
-                    inspection_report.csv
-                  </span>
-                </div>
-                <div
-                  className={
-                    "flex items-center h-6 pl-6 pr-2 space-x-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant cursor-pointer transition-colors"
-                  }
-                >
-                  <span
-                    className={
-                      "material-symbols-outlined text-[14px] text-outline"
-                    }
-                  >
-                    data_object
-                  </span>
-                  <span className={"text-xs truncate font-mono"}>
-                    results.json
-                  </span>
-                </div>
-                <div
-                  className={
-                    "flex items-center h-6 px-space-sm space-x-1 text-on-surface-variant hover:bg-surface-variant cursor-pointer mt-1"
-                  }
-                >
-                  <span
-                    className={
-                      "material-symbols-outlined text-[14px] text-on-surface-variant"
-                    }
-                  >
-                    expand_more
-                  </span>
-                  <span
-                    className={
-                      "material-symbols-outlined text-[15px] text-on-surface-variant"
-                    }
-                  >
-                    folder
-                  </span>
-                  <span
-                    className={
-                      "text-xs tracking-normal text-on-surface font-mono"
-                    }
-                  >
-                    tests
-                  </span>
-                </div>
-                <div
-                  className={
-                    "flex items-center h-6 pl-6 pr-2 space-x-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant cursor-pointer transition-colors"
-                  }
-                >
-                  <span
-                    className={
-                      "material-symbols-outlined text-[14px] text-outline"
-                    }
-                  >
-                    bug_report
-                  </span>
-                  <span className={"text-xs truncate font-mono"}>
-                    test_parser.py
-                  </span>
-                </div>
-                <div
-                  className={
-                    "flex items-center h-6 pl-4 pr-2 space-x-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant cursor-pointer mt-1 transition-colors"
-                  }
-                >
-                  <span
-                    className={
-                      "material-symbols-outlined text-[14px] text-outline"
-                    }
-                  >
-                    tune
-                  </span>
-                  <span className={"text-xs truncate font-mono"}>
-                    requirements.txt
-                  </span>
-                </div>
-                <div
-                  className={
-                    "flex items-center h-6 pl-4 pr-2 space-x-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant cursor-pointer transition-colors"
-                  }
-                >
-                  <span
-                    className={
-                      "material-symbols-outlined text-[14px] text-outline"
-                    }
-                  >
-                    description
-                  </span>
-                  <span className={"text-xs truncate font-mono"}>
-                    README.md
-                  </span>
-                </div>
-              </div>
-              <div
-                className={
-                  "h-8 px-space-sm bg-surface border-t border-outline-variant flex items-center justify-between text-outline shrink-0 font-label-sm text-label-sm"
-                }
-              >
-                <div className={"flex items-center space-x-1.5 truncate"}>
-                  <span
-                    className={
-                      "material-symbols-outlined text-[13px] text-primary"
-                    }
-                  >
-                    lock_clock
-                  </span>
-                  <span
-                    className={
-                      "truncate tracking-wider uppercase text-[10px] text-outline font-mono"
-                    }
-                  >
-                    AIRGAP // SHA: 9f8a2c
-                  </span>
-                </div>
-                <span
-                  className={
-                    "px-1 py-0.5 rounded bg-surface-variant text-primary text-[9px] uppercase tracking-widest font-mono font-medium"
-                  }
-                >
-                  clean
-                </span>
-              </div>
-            </div>{" "}
-            <div
-              className={
-                "flex-1 flex flex-col h-full min-w-0 bg-[#F1F0EB] dark:bg-[#121312]"
-              }
-            >
-              {" "}
-              <div
-                className={
-                  "h-9 bg-surface border-b border-outline-variant flex items-center justify-between shrink-0 select-none"
-                }
-              >
-                {" "}
-                <div
-                  className={"flex items-center h-full overflow-x-auto min-w-0"}
-                >
-                  {" "}
-                  <div
-                    className={
-                      "h-full px-space-md bg-[#181918] dark:bg-[#141514] text-[#f2f1ed] border-t-2 border-primary border-r border-[#2d2e2b] flex items-center space-x-2 shrink-0 cursor-pointer group"
-                    }
-                    style={{ borderTopColor: "rgb(23, 107, 91)" }}
-                  >
-                    <span
-                      className={
-                        "material-symbols-outlined text-[15px] text-primary"
-                      }
-                    >
-                      terminal
-                    </span>
-                    <span
-                      className={
-                        "font-code-md text-code-md font-medium text-[#f2f1ed] font-mono"
-                      }
-                    >
-                      main.py
-                    </span>
-                    <span
-                      className={
-                        "w-2 h-2 rounded-full bg-primary group-hover:hidden"
-                      }
-                    ></span>
-                    <button
-                      className={
-                        "hidden group-hover:flex w-4 h-4 items-center justify-center rounded hover:bg-[#2d2e2b] text-[#8a8984] hover:text-[#f2f1ed]"
-                      }
-                    >
-                      <span className={"material-symbols-outlined text-[12px]"}>
-                        close
-                      </span>
-                    </button>
-                  </div>{" "}
-                  <div
-                    className={
-                      "h-full px-space-md bg-surface text-on-surface-variant hover:text-on-surface border-r border-outline-variant flex items-center space-x-2 shrink-0 cursor-pointer group transition-colors"
-                    }
-                  >
-                    {" "}
-                    <span
-                      className={
-                        "material-symbols-outlined text-[15px] text-outline"
-                      }
-                    >
-                      terminal
-                    </span>{" "}
-                    <span className={"font-code-md text-code-md font-mono"}>
-                      analyzer.py
-                    </span>{" "}
-                    <button
-                      className={
-                        "opacity-0 group-hover:opacity-100 w-4 h-4 flex items-center justify-center rounded hover:bg-surface-variant text-on-surface-variant hover:text-on-surface transition-opacity"
-                      }
-                    >
-                      {" "}
-                      <span className={"material-symbols-outlined text-[12px]"}>
-                        close
-                      </span>{" "}
-                    </button>{" "}
-                  </div>{" "}
-                  <div
-                    className={
-                      "h-full px-space-md bg-surface text-on-surface-variant hover:text-on-surface border-r border-outline-variant flex items-center space-x-2 shrink-0 cursor-pointer group transition-colors"
-                    }
-                  >
-                    {" "}
-                    <span
-                      className={
-                        "material-symbols-outlined text-[15px] text-outline"
-                      }
-                    >
-                      terminal
-                    </span>{" "}
-                    <span className={"font-code-md text-code-md font-mono"}>
-                      parser.py
-                    </span>{" "}
-                    <button
-                      className={
-                        "opacity-0 group-hover:opacity-100 w-4 h-4 flex items-center justify-center rounded hover:bg-surface-variant text-on-surface-variant hover:text-on-surface transition-opacity"
-                      }
-                    >
-                      {" "}
-                      <span className={"material-symbols-outlined text-[12px]"}>
-                        close
-                      </span>{" "}
-                    </button>{" "}
-                  </div>{" "}
-                </div>{" "}
-                <div
-                  className={
-                    "flex items-center space-x-1 px-space-sm text-on-surface-variant shrink-0"
-                  }
-                >
-                  {" "}
-                  <button
-                    className={
-                      "w-6 h-6 flex items-center justify-center hover:bg-surface-variant hover:text-on-surface rounded transition-colors"
-                    }
-                    title={"Split Editor Right"}
-                  >
-                    {" "}
-                    <span className={"material-symbols-outlined text-[16px]"}>
-                      vertical_split
-                    </span>{" "}
-                  </button>{" "}
-                  <button
-                    className={
-                      "w-6 h-6 flex items-center justify-center hover:bg-surface-variant hover:text-on-surface rounded transition-colors"
-                    }
-                    title={"Inline Telemetry Diff"}
-                  >
-                    {" "}
-                    <span className={"material-symbols-outlined text-[16px]"}>
-                      difference
-                    </span>{" "}
-                  </button>{" "}
-                  <button
-                    className={
-                      "w-6 h-6 flex items-center justify-center hover:bg-surface-variant hover:text-on-surface rounded transition-colors"
-                    }
-                    title={"More Editor Actions"}
-                  >
-                    {" "}
-                    <span className={"material-symbols-outlined text-[16px]"}>
-                      more_vert
-                    </span>{" "}
-                  </button>{" "}
-                </div>{" "}
-              </div>{" "}
-              <div
-                className={
-                  "h-[26px] bg-[#141514] border-b border-[#282927] px-space-md flex items-center space-x-2 text-[11px] font-mono text-[#8e8d87] shrink-0"
-                }
-              >
-                <span className={""}>vault-agent</span>
-                <span className={"text-[#525350]"}>â€º</span>
-                <span className={""}>src</span>
-                <span className={"text-[#525350]"}>â€º</span>
-                <span className={"text-[#e3e2df] font-medium"}>main.py</span>
-                <span className={"text-[#525350]"}>â€º</span>
-                <div className={"flex items-center space-x-1 text-[#89d5c1]"}>
-                  <span className={"material-symbols-outlined text-[12px]"}>
-                    function
-                  </span>
-                  <span className={"font-medium"}>analyse_report</span>
-                </div>
-              </div>{" "}
-              <div
-                className={
-                  "flex-1 overflow-y-auto font-code-md text-code-md min-h-0 bg-[#181918] dark:bg-[#141514] relative flex select-text"
-                }
-              >
-                <div
-                  className={
-                    "w-12 py-3 bg-[#141514] dark:bg-[#101110] text-right pr-3 select-none text-[#5c5d59] font-mono text-[12px] leading-6 shrink-0 border-r border-[#282927]"
-                  }
-                >
-                  <div className={""}>1</div>
-                  <div className={""}>2</div>
-                  <div className={""}>3</div>
-                  <div className={""}>4</div>
-                  <div className={""}>5</div>
-                  <div className={""}>6</div>
-                  <div className={""}>7</div>
-                  <div className={""}>8</div>
-                  <div className={""}>9</div>
-                  <div className={""}>10</div>
-                  <div className={""}>11</div>
-                  <div className={""}>12</div>
-                  <div className={""}>13</div>
-                  <div className={""}>14</div>
-                  <div className={"text-[#89d5c1] font-semibold"}>15</div>
-                  <div className={""}>16</div>
-                  <div className={""}>17</div>
-                  <div className={""}>18</div>
-                  <div className={""}>19</div>
-                  <div className={""}>20</div>
-                  <div className={""}>21</div>
-                  <div className={""}>22</div>
-                  <div className={""}>23</div>
-                  <div className={""}>24</div>
-                </div>
-                <div
-                  className={
-                    "flex-1 py-3 px-4 overflow-x-auto leading-6 text-[#e3e2df] font-mono text-[13px] whitespace-pre min-w-0"
-                  }
-                >
-                  <div>
-                    <span className={"text-[#767873]"}>"""</span>
-                  </div>
-                  <div>
-                    <span className={"text-[#767873]"}>
-                      {" "}
-                      VAULT Sovereign Air-Gapped Analysis Routine
-                    </span>
-                  </div>
-                  <div>
-                    <span className={"text-[#767873]"}>
-                      {" "}
-                      Task: Automated defect extraction &amp; statistical triage
-                    </span>
-                  </div>
-                  <div>
-                    <span className={"text-[#767873]"}>"""</span>
-                  </div>
-                  <div className={""}>
-                    <span className={"text-[#ff9d66] font-medium"}>import</span>{" "}
-                    pandas{" "}
-                    <span className={"text-[#ff9d66] font-medium"}>as</span> pd
-                  </div>
-                  <div className={""}>
-                    <span className={"text-[#ff9d66] font-medium"}>import</span>{" "}
-                    numpy{" "}
-                    <span className={"text-[#ff9d66] font-medium"}>as</span> np
-                  </div>
-                  <div className={""}>
-                    <span className={"text-[#ff9d66] font-medium"}>from</span>{" "}
-                    pathlib{" "}
-                    <span className={"text-[#ff9d66] font-medium"}>import</span>{" "}
-                    Path
-                  </div>
-                  <div></div>
-                  <div className={""}>
-                    <span className={"text-[#ff9d66] font-medium"}>def</span>{" "}
-                    <span className={"text-[#bbe9ff] font-semibold"}>
-                      analyse_report
-                    </span>
-                    (path: <span className={"text-[#67d3fd]"}>str</span>) -&gt;
-                    pd.<span className={"text-[#67d3fd]"}>DataFrame</span>:
-                  </div>
-                  <div>
-                    {" "}
-                    <span className={"text-[#767873]"}>
-                      """Parses industrial telemetry and extracts anomalous
-                      variance."""
-                    </span>
-                  </div>
-                  <div className={""}>
-                    {" "}
-                    target_file = <span className={"text-[#e3e2df]"}>Path</span>
-                    (path)
-                  </div>
-                  <div className={""}>
-                    {" "}
-                    <span className={"text-[#ff9d66] font-medium"}>
-                      if not
-                    </span>{" "}
-                    target_file.<span className={"text-[#bbe9ff]"}>exists</span>
-                    ():
-                  </div>
-                  <div className={""}>
-                    {" "}
-                    <span className={"text-[#ff9d66] font-medium"}>
-                      raise
-                    </span>{" "}
-                    <span className={"text-[#ff8577] font-medium"}>
-                      FileNotFoundError
-                    </span>
-                    (
-                    <span className={"text-[#9be4a8]"}>
-                      f"Local enclave dataset missing: {"{"}path{"}"}"
-                    </span>
-                    )
-                  </div>
-                  <div> </div>
-                  <div
-                    className={
-                      "bg-[#262825] -mx-4 px-4 flex items-center relative"
-                    }
-                  >
-                    <span
-                      className={
-                        "absolute left-0 top-0 bottom-0 w-[2px] bg-primary"
-                      }
-                      style={{ backgroundColor: "rgb(23, 107, 91)" }}
-                    ></span>
-                    <span className={""}>
-                      {" "}
-                      df = pd.<span className={"text-[#bbe9ff]"}>read_csv</span>
-                      (target_file)
-                    </span>
-                    <span
-                      className={
-                        "inline-block w-2 h-4 bg-primary ml-0.5 animate-pulse"
-                      }
-                      style={{ backgroundColor: "rgb(23, 107, 91)" }}
-                    ></span>
-                  </div>
-                  <div>
-                    {" "}
-                    <span className={"text-[#767873]"}>
-                      # Compute statistical bounds within isolated memory block
-                    </span>
-                  </div>
-                  <div className={""}>
-                    {" "}
-                    summary = df.
-                    <span className={"text-[#bbe9ff]"}>describe</span>()
-                  </div>
-                  <div className={""}>
-                    {" "}
-                    <span className={"text-[#ff9d66] font-medium"}>
-                      return
-                    </span>{" "}
-                    summary
-                  </div>
-                  <div></div>
-                  <div></div>
-                  <div className={""}>
-                    <span className={"text-[#ff9d66] font-medium"}>if</span>{" "}
-                    __name__ =={" "}
-                    <span className={"text-[#9be4a8]"}>"__main__"</span>:
-                  </div>
-                  <div className={""}>
-                    {" "}
-                    <span className={"text-[#e3e2df]"}>print</span>(
-                    <span className={"text-[#9be4a8]"}>
-                      "[VAULT-EXEC] Processing confidential telemetry..."
-                    </span>
-                    )
-                  </div>
-                  <div className={""}>
-                    {" "}
-                    report_summary ={" "}
-                    <span className={"text-[#bbe9ff]"}>analyse_report</span>(
-                    <span className={"text-[#9be4a8]"}>
-                      "data/inspection_report.csv"
-                    </span>
-                    )
-                  </div>
-                  <div className={""}>
-                    {" "}
-                    <span className={"text-[#e3e2df]"}>print</span>
-                    (report_summary)
-                  </div>
-                </div>
-                <div
-                  className={
-                    "absolute right-6 top-48 bg-[#1B211E] border border-[#176B5B] rounded px-space-sm py-1.5 shadow-md flex items-center space-x-3 pointer-events-auto"
-                  }
-                >
-                  <div
-                    className={
-                      "flex items-center space-x-1.5 text-[#fffbff] font-label-sm text-label-sm font-medium"
-                    }
-                  >
-                    <span
-                      className={
-                        "material-symbols-outlined text-[15px] text-[#89d5c1]"
-                      }
-                    >
-                      auto_awesome
-                    </span>
-                    <span className={""}>Inline Agent Diff Pending</span>
-                  </div>
-                  <span className={"text-[#464745]"}>|</span>
-                  <span className={"text-[#a7a6a1] font-mono text-[11px]"}>
-                    +18 / -2
-                  </span>
-                  <span
-                    className={
-                      "px-2 py-0.5 rounded bg-primary text-[#fffbff] font-label-sm text-[10px] uppercase font-semibold tracking-wider font-mono"
-                    }
-                    style={{ backgroundColor: "rgb(23, 107, 91)" }}
-                  >
-                    Tab to Accept
-                  </span>
-                </div>
-              </div>{" "}
-              <div
-                className={
-                  "h-56 bg-surface-variant border-t border-outline-variant flex flex-col shrink-0"
-                }
-              >
-                {" "}
-                <div
-                  className={
-                    "h-8 px-space-sm bg-surface-variant border-b border-outline-variant flex items-center justify-between select-none"
-                  }
-                >
-                  {" "}
-                  <div className={"flex items-center space-x-4 h-full"}>
-                    {" "}
-                    <div
-                      className={
-                        "flex items-center space-x-1.5 h-full border-b-2 border-primary text-on-surface font-label-sm text-label-sm uppercase px-1 font-semibold font-mono"
-                      }
-                    >
-                      {" "}
-                      <span
-                        className={
-                          "w-1.5 h-1.5 rounded-full bg-primary inline-block"
-                        }
-                      ></span>{" "}
-                      <span className={""} data-i18n={"term_tab_terminal"}>
-                        TERMINAL
-                      </span>{" "}
-                    </div>{" "}
-                    <div
-                      className={
-                        "flex items-center space-x-1 text-on-surface-variant hover:text-on-surface font-label-sm text-label-sm uppercase cursor-pointer font-mono"
-                      }
-                    >
-                      {" "}
-                      <span className={""} data-i18n={"term_tab_problems"}>
-                        PROBLEMS
-                      </span>{" "}
-                      <span
-                        className={
-                          "px-1 rounded bg-outline-variant text-on-surface text-[10px] font-medium"
-                        }
-                      >
-                        1
-                      </span>{" "}
-                    </div>{" "}
-                    <div
-                      className={
-                        "text-on-surface-variant hover:text-on-surface font-label-sm text-label-sm uppercase cursor-pointer font-mono"
-                      }
-                      data-i18n={"term_tab_output"}
-                    >
-                      OUTPUT
-                    </div>{" "}
-                    <div
-                      className={
-                        "text-on-surface-variant hover:text-on-surface font-label-sm text-label-sm uppercase cursor-pointer font-mono"
-                      }
-                      data-i18n={"term_tab_enclave"}
-                    >
-                      ENCLAVE SANDBOX
-                    </div>{" "}
-                  </div>{" "}
-                  <div
-                    className={
-                      "flex items-center space-x-1 text-on-surface-variant"
-                    }
-                  >
-                    {" "}
-                    <button
-                      className={
-                        "w-5 h-5 flex items-center justify-center hover:bg-outline-variant hover:text-on-surface rounded transition-colors"
-                      }
-                      title={"Split Terminal Instance"}
-                    >
-                      {" "}
-                      <span className={"material-symbols-outlined text-[14px]"}>
-                        add
-                      </span>{" "}
-                    </button>{" "}
-                    <button
-                      className={
-                        "w-5 h-5 flex items-center justify-center hover:bg-outline-variant hover:text-on-surface rounded transition-colors"
-                      }
-                      title={"Clear Buffer"}
-                    >
-                      {" "}
-                      <span className={"material-symbols-outlined text-[14px]"}>
-                        delete
-                      </span>{" "}
-                    </button>{" "}
-                    <button
-                      className={
-                        "w-5 h-5 flex items-center justify-center hover:bg-outline-variant hover:text-on-surface rounded transition-colors"
-                      }
-                      title={"Toggle Terminal Size"}
-                    >
-                      {" "}
-                      <span className={"material-symbols-outlined text-[14px]"}>
-                        keyboard_arrow_up
-                      </span>{" "}
-                    </button>{" "}
-                    <button
-                      className={
-                        "w-5 h-5 flex items-center justify-center hover:bg-outline-variant hover:text-on-surface rounded transition-colors"
-                      }
-                      title={"Close Panel"}
-                    >
-                      {" "}
-                      <span className={"material-symbols-outlined text-[14px]"}>
-                        close
-                      </span>{" "}
-                    </button>{" "}
-                  </div>{" "}
-                </div>{" "}
-                <div
-                  className={
-                    "flex-1 p-3 font-mono text-[12px] leading-relaxed text-tertiary overflow-y-auto select-text space-y-0.5"
-                  }
-                >
-                  {" "}
-                  <div className={"text-on-surface-variant"}>
-                    <span className={"text-primary font-semibold"}>
-                      vault@sov-01
-                    </span>
-                    :<span className={"text-on-surface"}>~/vault-agent</span>$
-                    python main.py
-                  </div>{" "}
-                  <div className={"text-on-surface-variant"}>
-                    [AIRGAP-ENV] Virtual environment active: .venv-vault-311
-                  </div>{" "}
-                  <div className={"text-tertiary"}>
-                    [LOADER] Inspection report loaded: 4,120 records verified
-                    (SHA256: 7f8c12a4b8)
-                  </div>{" "}
-                  <div className={"text-tertiary"}>
-                    [ANALYTICS] Analysis completed across 8 industrial sensor
-                    channels
-                  </div>{" "}
-                  <div
-                    className={"text-tertiary flex items-center space-x-1.5"}
-                  >
-                    {" "}
-                    <span
-                      className={
-                        "material-symbols-outlined text-[13px] text-primary"
-                      }
-                    >
-                      check_circle
-                    </span>{" "}
-                    <span className={""}>
-                      Sandbox execution completed in isolated cgroup // peak
-                      RAM: 412MB
-                    </span>{" "}
-                  </div>{" "}
-                  <div
-                    className={"text-tertiary flex items-center space-x-1.5"}
-                  >
-                    {" "}
-                    <span
-                      className={
-                        "material-symbols-outlined text-[13px] text-primary"
-                      }
-                    >
-                      format_image_left
-                    </span>{" "}
-                    <span className={""}>
-                      Zero external network requests detected (egress packet
-                      monitor: 0 bytes)
-                    </span>{" "}
-                  </div>{" "}
-                  <div className={"flex items-center text-tertiary pt-1"}>
-                    {" "}
-                    <span className={"text-primary font-semibold"}>
-                      vault@sov-01
-                    </span>
-                    :<span className={"text-on-surface"}>~/vault-agent</span>
-                    $&nbsp;
-                    <span
-                      className={"inline-block w-2 h-3.5 bg-primary"}
-                    ></span>{" "}
-                  </div>{" "}
-                </div>{" "}
-                <div
-                  className={
-                    "h-6 px-space-md bg-outline-variant/30 border-t border-outline-variant flex items-center justify-between font-mono text-[10px] text-on-surface-variant"
-                  }
-                >
-                  {" "}
-                  <div className={"flex items-center space-x-3"}>
-                    {" "}
-                    <span
-                      className={""}
-                      data-i18n={"term_status_problems"}
-                      id={"term-status-problems"}
-                    >
-                      Problems: 0
-                    </span>{" "}
-                    <span className={"text-outline"}>|</span>{" "}
-                    <span
-                      className={"text-primary font-medium"}
-                      data-i18n={"term_status_warnings"}
-                      id={"term-status-warnings"}
-                    >
-                      Warnings: 1 (pandas FutureType)
-                    </span>{" "}
-                    <span className={"text-outline"}>|</span>{" "}
-                    <span
-                      className={""}
-                      data-i18n={"term_status_exec"}
-                      id={"term-status-exec"}
-                    >
-                      Execution: 1.82s
-                    </span>{" "}
-                  </div>{" "}
-                  <div
-                    className={
-                      "flex items-center space-x-2 text-on-surface-variant"
-                    }
-                  >
-                    {" "}
-                    <span
-                      className={"w-1.5 h-1.5 rounded-full bg-primary"}
-                    ></span>{" "}
-                    <span
-                      className={
-                        "uppercase tracking-wider font-medium text-on-surface"
-                      }
-                    >
-                      SANDBOX: LEVEL-4 ISOLATED CGROUP
-                    </span>{" "}
-                  </div>{" "}
-                </div>{" "}
-              </div>{" "}
-            </div>{" "}
-            <div
-              className={
-                "w-[280px] shrink-0 h-full bg-background border-l border-outline-variant flex flex-col min-w-0 justify-between"
-              }
-            >
-              {" "}
-              <div
-                className={
-                  "flex-1 overflow-y-auto p-space-sm space-y-space-md min-h-0"
-                }
-              >
-                {" "}
-                <div
-                  className={
-                    "flex items-center justify-between pb-space-xs border-b border-outline-variant"
-                  }
-                >
-                  {" "}
-                  <div className={"flex items-center space-x-2"}>
-                    {" "}
-                    <span
-                      className={
-                        "font-label-md text-label-md font-semibold text-on-surface uppercase tracking-wider"
-                      }
-                      data-i18n={"agent_header"}
-                    >
-                      AI AGENT
-                    </span>{" "}
-                    <span
-                      className={
-                        "px-1.5 py-0.5 rounded bg-primary-container text-primary font-label-sm text-[10px] uppercase font-semibold"
-                      }
-                      data-i18n={"agent_tag"}
-                      style={{
-                        backgroundColor: "rgb(241, 247, 245)",
-                        color: "rgb(23, 107, 91)",
-                      }}
-                    >
-                      LOCAL Â· CODER
-                    </span>{" "}
-                  </div>{" "}
-                  <button
-                    className={
-                      "w-5 h-5 flex items-center justify-center text-on-surface-variant hover:text-on-surface rounded transition-colors"
-                    }
-                    title={"Collapse Panel"}
-                  >
-                    {" "}
-                    <span className={"material-symbols-outlined text-[15px]"}>
-                      dock_to_right
-                    </span>{" "}
-                  </button>{" "}
-                </div>{" "}
-                <div className={"space-y-1.5"}>
-                  {" "}
-                  <div className={"flex items-center justify-between"}>
-                    {" "}
-                    <span
-                      className={
-                        "font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant"
-                      }
-                      data-i18n={"task_title"}
-                    >
-                      CURRENT TASK
-                    </span>{" "}
-                    <span
-                      className={
-                        "text-[10px] text-primary font-mono font-medium"
-                      }
-                      data-i18n={"task_sync"}
-                    >
-                      AUTO-SYNC
-                    </span>{" "}
-                  </div>{" "}
-                  <div
-                    className={
-                      "p-space-sm rounded bg-surface border border-outline-variant text-on-surface font-body-sm text-body-sm leading-relaxed shadow-sm"
-                    }
-                    data-i18n={"task_content"}
-                  >
-                    Generate an automated script to parse industrial sensor
-                    inspection records and flag variance spikes over 3Ïƒ
-                    threshold.
-                  </div>{" "}
-                </div>{" "}
-                <div className={"space-y-2"}>
-                  {" "}
-                  <span
-                    className={
-                      "font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant"
-                    }
-                    data-i18n={"plan_title"}
-                  >
-                    EXECUTION PLAN
-                  </span>{" "}
-                  <div
-                    className={
-                      "space-y-1.5 bg-surface p-space-sm rounded border border-outline-variant text-[11px] shadow-sm"
-                    }
-                  >
-                    {" "}
-                    <div className={"flex items-center space-x-2 text-primary"}>
-                      {" "}
-                      <span
-                        className={
-                          "material-symbols-outlined text-[14px] text-primary"
-                        }
-                      >
-                        check
-                      </span>{" "}
-                      <span
-                        className={"line-through text-on-surface-variant"}
-                        data-i18n={"plan_step_1"}
-                      >
-                        Read inspection dataset
-                      </span>{" "}
-                    </div>{" "}
-                    <div className={"flex items-center space-x-2 text-primary"}>
-                      {" "}
-                      <span
-                        className={
-                          "material-symbols-outlined text-[14px] text-primary"
-                        }
-                      >
-                        check
-                      </span>{" "}
-                      <span
-                        className={"line-through text-on-surface-variant"}
-                        data-i18n={"plan_step_2"}
-                      >
-                        Generate statistical routine
-                      </span>{" "}
-                    </div>{" "}
-                    <div
-                      className={
-                        "flex items-center space-x-2 text-on-surface font-medium"
-                      }
-                    >
-                      {" "}
-                      <span
-                        className={
-                          "w-3.5 h-3.5 rounded-full border border-primary flex items-center justify-center shrink-0"
-                        }
-                      >
-                        {" "}
-                        <span
-                          className={
-                            "w-1.5 h-1.5 rounded-full bg-primary animate-pulse"
-                          }
-                          style={{ backgroundColor: "rgb(23, 107, 91)" }}
-                        ></span>{" "}
-                      </span>{" "}
-                      <span className={""} data-i18n={"plan_step_3"}>
-                        Execute inside cgroup sandbox
-                      </span>{" "}
-                    </div>{" "}
-                    <div
-                      className={
-                        "flex items-center space-x-2 text-on-surface-variant pl-5"
-                      }
-                    >
-                      {" "}
-                      <span
-                        className={
-                          "w-1.5 h-1.5 rounded-full bg-outline shrink-0"
-                        }
-                      ></span>{" "}
-                      <span className={""} data-i18n={"plan_step_4"}>
-                        Verify zero-egress invariants
-                      </span>{" "}
-                    </div>{" "}
-                  </div>{" "}
-                </div>{" "}
-                <div className={"space-y-1.5"}>
-                  {" "}
-                  <div className={"flex items-center justify-between"}>
-                    {" "}
-                    <span
-                      className={
-                        "font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant"
-                      }
-                      data-i18n={"stream_title"}
-                    >
-                      STREAM TELEMETRY
-                    </span>{" "}
-                    <span
-                      className={
-                        "flex items-center space-x-1 text-[10px] text-primary font-mono font-semibold"
-                      }
-                    >
-                      {" "}
-                      <span
-                        className={"w-1.5 h-1.5 rounded-full bg-primary"}
-                      ></span>{" "}
-                      <span className={""}>92 t/s</span>{" "}
-                    </span>{" "}
-                  </div>{" "}
-                  <div
-                    className={
-                      "bg-surface-variant p-space-sm rounded border border-outline-variant font-mono text-[11px] space-y-1.5 text-on-surface-variant max-h-40 overflow-y-auto"
-                    }
-                  >
-                    {" "}
-                    <div className={""}>
-                      {" "}
-                      <span className={"text-outline"}>[14:32:01]</span> Reading
-                      data/inspection_report.csv (4,120 rows)
-                    </div>{" "}
-                    <div className={""}>
-                      {" "}
-                      <span className={"text-outline"}>[14:32:03]</span>{" "}
-                      Generating analysis function in src/main.py
-                    </div>{" "}
-                    <div className={"text-primary font-medium"}>
-                      {" "}
-                      <span className={"text-outline"}>[14:32:04]</span> Diff
-                      proposed: +18 lines, -2 lines
-                    </div>{" "}
-                    <div className={"text-on-surface-variant text-[10px]"}>
-                      {" "}
-                      <span className={"text-outline"}>[14:32:05]</span> Enclave
-                      SHA256 verified against local weights
-                    </div>{" "}
-                  </div>{" "}
-                </div>{" "}
-                <div
-                  className={
-                    "p-2 rounded bg-surface border border-outline-variant space-y-1 shadow-sm"
-                  }
-                >
-                  {" "}
-                  <div
-                    className={
-                      "flex items-center justify-between text-[10px] font-label-sm text-on-surface-variant uppercase font-mono"
-                    }
-                  >
-                    {" "}
-                    <span className={""}>Model Anchor</span>{" "}
-                    <span className={"text-primary font-mono font-medium"}>
-                      GPU 0 ACTIVE
-                    </span>{" "}
-                  </div>{" "}
-                  <div
-                    className={
-                      "text-xs font-mono text-on-surface font-medium truncate"
-                    }
-                  >
-                    Qwen2.5-Coder-32B-Instruct
-                  </div>{" "}
-                  <div
-                    className={
-                      "flex items-center justify-between text-[10px] text-on-surface-variant font-mono"
-                    }
-                  >
-                    {" "}
-                    <span className={""}>VRAM: 22.4 / 24.0 GB</span>{" "}
-                    <span className={""}>Quant: FP16</span>{" "}
-                  </div>{" "}
-                </div>{" "}
-              </div>{" "}
-              <div
-                className={
-                  "p-space-sm bg-surface border-t border-outline-variant space-y-2 shrink-0"
-                }
-              >
-                {" "}
-                <button
-                  className={
-                    "w-full py-2 px-3 rounded bg-primary hover:bg-surface-variant text-[#FFFFFF] font-label-md text-label-md uppercase font-semibold transition-colors flex items-center justify-center space-x-1.5 shadow-sm active:translate-y-px"
-                  }
-                  style={{ backgroundColor: "rgb(23, 107, 91)" }}
-                >
-                  <span className={"material-symbols-outlined text-[15px]"}>
-                    done_all
-                  </span>
-                  <span className={""} data-i18n={"btn_apply"}>
-                    Apply Changes
-                  </span>
-                </button>{" "}
-                <div className={"grid grid-cols-2 gap-2"}>
-                  {" "}
-                  <button
-                    className={
-                      "py-1.5 px-3 rounded bg-surface hover:bg-surface-variant text-on-surface border border-outline-variant font-label-md text-[11px] uppercase transition-colors flex items-center justify-center space-x-1 font-medium"
-                    }
-                  >
-                    {" "}
-                    <span
-                      className={
-                        "material-symbols-outlined text-[14px] text-primary"
-                      }
-                    >
-                      play_arrow
-                    </span>{" "}
-                    <span className={""} data-i18n={"btn_run"}>
-                      Run Sandbox
-                    </span>{" "}
-                  </button>{" "}
-                  <button
-                    className={
-                      "py-1.5 px-3 rounded bg-surface hover:bg-surface-variant text-on-surface border border-outline-variant font-label-md text-[11px] uppercase transition-colors flex items-center justify-center space-x-1 font-medium"
-                    }
-                  >
-                    {" "}
-                    <span
-                      className={
-                        "material-symbols-outlined text-[14px] text-outline"
-                      }
-                    >
-                      stop
-                    </span>{" "}
-                    <span className={""} data-i18n={"btn_interrupt"}>
-                      Interrupt
-                    </span>{" "}
-                  </button>{" "}
-                </div>{" "}
-              </div>{" "}
-            </div>{" "}
-          </div>{" "}
+    <div className={`flex w-full h-full ${bg} overflow-hidden transition-colors duration-200`}>
+
+      {/* ── LEFT: Editor + Terminal ──────────────────────────────────── */}
+      <div className={`flex-1 flex flex-col min-w-0 h-full border-r ${bdr}`}>
+
+        {/* Toolbar */}
+        <div className={`flex items-center justify-between px-3 py-2 border-b ${bdr} ${srf} shrink-0`}>
+          <div className="flex items-center gap-2">
+            {/* File tab */}
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border ${bdr} ${d ? 'bg-[#0d1117]' : 'bg-[#F1F0EB]'}`}>
+              <FileCode2 className={`w-3 h-3 ${sub}`} />
+              <span className={`text-[11px] font-mono ${txt}`}>main.py</span>
+            </div>
+
+            {/* Status badges */}
+            <div className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded border font-mono ${
+              dockerOk ? (d ? 'bg-emerald-900/20 border-emerald-800/40 text-emerald-400' : 'bg-[#EAF4F1] border-[#B2D8D0] text-[#176B5B]')
+                       : (d ? 'bg-yellow-900/20 border-yellow-800/30 text-yellow-400' : 'bg-amber-50 border-amber-200 text-amber-600')
+            }`}>
+              {dockerOk ? <Wifi className="w-2.5 h-2.5" /> : <WifiOff className="w-2.5 h-2.5" />}
+              {dockerOk === null ? '…' : dockerOk ? 'Docker' : 'Local'}
+            </div>
+            <div className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded border font-mono ${
+              d ? 'bg-blue-900/20 border-blue-800/30 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-600'
+            }`}>
+              <Layers className="w-2.5 h-2.5" />Python
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {/* Theme toggle */}
+            <button onClick={() => setIsDark(v => !v)}
+              className={`w-7 h-7 rounded-lg flex items-center justify-center border transition-colors ${
+                d ? 'bg-[#161b22] border-[#30363d] text-[#8b949e] hover:text-[#c9d1d9]'
+                  : 'bg-[#F1F0EB] border-[#E2DED5] text-[#77766F] hover:text-[#20211F]'
+              }`}>
+              {d ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+            </button>
+            <button onClick={handleClear}
+              className={`flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-lg transition-colors ${sub} ${
+                d ? 'hover:bg-[#161b22] hover:text-[#c9d1d9]' : 'hover:bg-[#EEE] hover:text-[#20211F]'
+              }`}>
+              <Trash2 className="w-3 h-3" /> Clear
+            </button>
+            {isRunning ? (
+              <button onClick={handleStop}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-red-700 hover:bg-red-600 text-white transition-colors">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Stop
+              </button>
+            ) : (
+              <button onClick={handleRun} disabled={!code.trim()} id="run-code-btn"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md shadow-emerald-900/20">
+                <Play className="w-3.5 h-3.5 fill-white" /> Run
+              </button>
+            )}
+          </div>
         </div>
-      </main>
+
+        {/* Accept/Reject banner — shown when pending code exists */}
+        <AnimatePresence>
+          {pendingCode && (
+            <DiffBanner
+              pendingCode={pendingCode}
+              onAccept={handleAccept}
+              onReject={handleReject}
+              isDark={isDark}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Monaco Editor */}
+        <div className={`transition-all duration-300 ${outputOpen ? 'flex-[3]' : 'flex-1'} min-h-0`}>
+          <Editor
+            height="100%"
+            defaultLanguage="python"
+            /* Show pending code dimmed while streaming; committed code otherwise */
+            value={pendingCode !== null ? pendingCode : code}
+            onChange={val => { if (pendingCode === null) setCode(val || '') }}
+            theme={d ? 'vs-dark' : 'vs'}
+            options={{
+              fontSize: 13,
+              fontFamily: "'JetBrains Mono','Fira Code',monospace",
+              fontLigatures: true,
+              minimap: { enabled: true, scale: 0.7 },
+              scrollBeyondLastLine: false,
+              lineHeight: 22,
+              padding: { top: 14, bottom: 14 },
+              smoothScrolling: true,
+              cursorBlinking: 'smooth',
+              cursorSmoothCaretAnimation: 'on',
+              renderLineHighlight: 'gutter',
+              bracketPairColorization: { enabled: true },
+              guides: { bracketPairs: true, indentation: true },
+              scrollbar: { verticalScrollbarSize: 5, horizontalScrollbarSize: 5 },
+              overviewRulerBorder: false,
+              wordWrap: 'off',
+              // Read-only while pending so user can't accidentally edit
+              readOnly: pendingCode !== null,
+            }}
+            loading={
+              <div className={`w-full h-full flex items-center justify-center ${d ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
+                <Loader2 className={`w-4 h-4 animate-spin ${sub}`} />
+              </div>
+            }
+          />
+        </div>
+
+        {/* xterm.js output panel */}
+        <div className={`border-t ${bdr} flex flex-col shrink-0 transition-all duration-300 ${outputOpen ? 'h-[220px]' : 'h-8'}`}>
+          <button onClick={() => setOutputOpen(v => !v)}
+            className={`flex items-center gap-2 px-3 py-1.5 w-full text-left shrink-0 transition-colors ${
+              d ? 'bg-[#010409] hover:bg-[#0d1117]' : 'bg-white hover:bg-[#F1F0EB]'
+            }`}>
+            <Terminal className={`w-3.5 h-3.5 ${sub}`} />
+            <span className={`text-[11px] font-mono uppercase tracking-wider ${sub}`}>Terminal</span>
+            {isRunning && <span className="flex items-center gap-1 text-[10px] text-yellow-400"><Activity className="w-2.5 h-2.5 animate-pulse" />Running</span>}
+            <div className="ml-auto">
+              {outputOpen ? <ChevronDown className={`w-3.5 h-3.5 ${sub}`} /> : <ChevronRight className={`w-3.5 h-3.5 ${sub}`} />}
+            </div>
+          </button>
+          {outputOpen && (
+            <div className={`flex-1 min-h-0 overflow-hidden ${d ? 'bg-[#0d1117]' : 'bg-[#F7F6F3]'}`}>
+              <SandboxTerminal isDark={isDark} termRef={termRef} fitRef={fitRef} />
+            </div>
+          )}
+        </div>
+
+        {/* Status bar */}
+        <div className={`h-6 border-t ${bdr} flex items-center px-3 gap-4 text-[10px] font-mono shrink-0 ${d ? 'bg-[#010409]' : 'bg-white'} ${sub}`}>
+          <div className="flex items-center gap-1.5">
+            <div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-yellow-400 animate-pulse' : 'bg-emerald-400'}`} />
+            {isRunning ? 'Executing…' : 'Ready'}
+          </div>
+          <div className="flex items-center gap-1"><GitBranch className="w-2.5 h-2.5" />main</div>
+          <div className="ml-auto flex items-center gap-1">
+            <Cpu className="w-2.5 h-2.5" />python:3.11-alpine · --network none
+          </div>
+        </div>
+      </div>
+
+      {/* ── RESIZE HANDLE ─────────────────────────────────────────────── */}
+      <div
+        onMouseDown={startResize}
+        className={`w-1 shrink-0 cursor-col-resize transition-colors ${
+          d ? 'bg-[#21262d] hover:bg-emerald-700/50' : 'bg-[#E2DED5] hover:bg-[#176B5B]/30'
+        }`}
+        title="Drag to resize"
+      />
+
+      {/* ── RIGHT: AI Coder chat panel ───────────────────────────────── */}
+      <div
+        className={`shrink-0 flex flex-col h-full ${srf} transition-none`}
+        style={{ width: `${chatWidth}px` }}
+      >
+
+        {/* Header */}
+        <div className={`px-4 py-3 border-b ${bdr} flex items-center gap-2.5 shrink-0`}>
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-md">
+            <BotMessageSquare className="w-4 h-4 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className={`text-[13px] font-semibold ${txt}`}>AI Coder</p>
+            <p className={`text-[10px] font-mono ${d ? 'text-emerald-400' : 'text-[#176B5B]'}`}>Qwen3-4B · llama.cpp :9090</p>
+          </div>
+          {/* Qwen status dot */}
+          <div className="flex flex-col items-end gap-0.5">
+            <div className="flex items-center gap-1">
+              <div className={`w-1.5 h-1.5 rounded-full ${qwenOk ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
+              <span className={`text-[9px] font-mono ${sub}`}>{qwenOk === null ? '…' : qwenOk ? 'Online' : 'Offline'}</span>
+            </div>
+            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${d ? 'bg-[#161b22] text-[#6e7681]' : 'bg-[#F1F0EB] text-[#77766F]'}`}>
+              AIR-GAPPED
+            </span>
+          </div>
+        </div>
+
+        {/* Qwen info pill */}
+        <div className={`mx-3 mt-2 mb-1 p-2 rounded-xl border ${d ? 'bg-[#0d1117] border-[#21262d]' : 'bg-[#F1F0EB] border-[#E2DED5]'}`}>
+          <div className="flex items-center gap-2 mb-0.5">
+            <Cpu className={`w-3 h-3 ${d ? 'text-emerald-400' : 'text-[#176B5B]'}`} />
+            <span className={`text-[10px] font-mono font-semibold ${d ? 'text-emerald-400' : 'text-[#176B5B]'}`}>
+              Qwen3-4B-GGUF Q4_K_M
+            </span>
+          </div>
+          <p className={`text-[10px] ${sub} leading-snug`}>
+            Code appears directly in the editor. Accept or reject changes.
+          </p>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-2.5 min-h-0">
+          <AnimatePresence initial={false}>
+            {messages.map((msg, i) => (
+              <AgentMessage key={i} msg={msg} isDark={isDark} />
+            ))}
+          </AnimatePresence>
+          {isGenerating && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl border w-fit ${d ? 'bg-[#0d1117] border-[#21262d]' : 'bg-[#F1F0EB] border-[#E2DED5]'}`}>
+              <Loader2 className={`w-3 h-3 animate-spin ${d ? 'text-emerald-400' : 'text-[#176B5B]'}`} />
+              <span className={`text-[11px] ${sub}`}>Qwen is thinking…</span>
+            </motion.div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* Input */}
+        <div className={`p-3 border-t ${bdr} shrink-0`}>
+          <div className={`flex items-end gap-2 border rounded-xl px-3 py-2 transition-colors ${
+            d ? 'bg-[#161b22] border-[#30363d] focus-within:border-emerald-700/70'
+              : 'bg-[#F1F0EB] border-[#E2DED5] focus-within:border-[#176B5B]'
+          }`}>
+            <textarea
+              value={userInput}
+              onChange={e => setUserInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask Qwen to write code…"
+              rows={2}
+              className={`flex-1 bg-transparent text-[12px] resize-none outline-none leading-relaxed ${txt}`}
+              style={{ color: d ? '#c9d1d9' : '#20211F' }}
+            />
+            <button onClick={handleSend} disabled={!userInput.trim() || isGenerating} id="send-message-btn"
+              className="w-7 h-7 rounded-lg bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center shrink-0 transition-colors shadow-md">
+              <Send className="w-3 h-3 text-white" />
+            </button>
+          </div>
+          {!qwenOk && qwenOk !== null && (
+            <p className="flex items-center gap-1 text-[10px] text-red-400 mt-1.5 font-mono">
+              <AlertCircle className="w-2.5 h-2.5" />
+              Qwen offline. Start: llama-server --port 9090
+            </p>
+          )}
+          {pendingCode && (
+            <p className={`text-[10px] mt-1.5 text-center font-mono ${d ? 'text-yellow-400' : 'text-amber-600'}`}>
+              ↑ Review code in editor — Accept or Reject
+            </p>
+          )}
+        </div>
+      </div>
     </div>
-  );
+  )
 }

@@ -112,7 +112,7 @@ export default function StudioPanel({
         </div>
       </div>
 
-      {/* Action grid */}
+      Action grid
       <div className="px-4 pt-3 pb-2 shrink-0">
         <div className="grid grid-cols-2 gap-1.5">
           {studioActions.map((a) => {
