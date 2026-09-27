@@ -596,7 +596,31 @@ export async function streamChat(query, onChunk, onComplete, onError, options = 
         if (onComplete) onComplete();
     }
   } catch (err) {
-    if (onError) onError(err);
-    else console.error('[API] Stream chat failed:', err);
+    if (onError) onError(err)
+    else console.error('[API] Stream chat failed:', err)
   }
+}
+
+/**
+ * Export a Studio Notebook note to a DOCX file via the backend.
+ * Endpoint: POST /studio/export
+ *
+ * @param {{ title: string, content: string }} note
+ * @returns {Promise<Blob>} Binary DOCX blob
+ */
+export async function exportStudioNote(note) {
+  const res = await fetch(`${API_BASE_URL}/studio/export`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: note.title,
+      content: note.content,
+      format: 'docx',
+    }),
+  })
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}))
+    throw new Error(detail.detail || `Export failed (${res.status})`)
+  }
+  return await res.blob()
 }

@@ -365,9 +365,11 @@ def create_app() -> FastAPI:
     app.include_router(knowledge_api.router)
     
     from app.api import retrieval, chat, files as new_files_api
+    from app.api import studio as studio_api
     app.include_router(new_files_api.router)
     app.include_router(retrieval.router)
     app.include_router(chat.router)
+    app.include_router(studio_api.router)
 
     return app
 
