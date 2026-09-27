@@ -64,7 +64,11 @@ class RAGService:
                         return
 
                     async for line in response.aiter_lines():
-                        if line:
+                        # Swallow llama.cpp's own terminal sentinel — we emit our
+                        # own [DONE] AFTER the custom sources event below. Forwarding
+                        # the upstream one causes the frontend to stop reading before
+                        # it ever sees the citations.
+                        if line and line.strip() != "data: [DONE]":
                             yield f"{line}\n\n"
                             
         except httpx.RequestError as e:

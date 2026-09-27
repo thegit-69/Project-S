@@ -70,3 +70,4 @@ ui
 chat-interface-architecture.md
 rag_plan.md
 test_files
+.claude/

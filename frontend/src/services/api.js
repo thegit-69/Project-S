@@ -279,7 +279,9 @@ export async function listKnowledgeDocuments() {
       headers: { 'Accept': 'application/json' },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    return await res.json();
+    const data = await res.json();
+    // GET /files/ returns { files: [...], total: N } — always hand back the array.
+    return Array.isArray(data) ? data : (data?.files || []);
   } catch (err) {
     console.warn('[API] listKnowledgeDocuments failed', err);
     return [];
@@ -314,19 +316,26 @@ export async function queryKnowledge(query, topK = 5, documentId = null) {
   return new Promise((resolve, reject) => {
     let fullText = '';
     let finalCitations = [];
+    let totalTimeMs = null;
+    let tokensUsed = null;
+    let tokensPerSec = null;
 
     streamChat(
       query,
       (chunk) => {
         if (chunk.content) fullText += chunk.content;
         if (chunk.citations) finalCitations = chunk.citations;
+        if (chunk.total_time_ms != null) totalTimeMs = chunk.total_time_ms;
+        if (chunk.tokens_used != null) tokensUsed = chunk.tokens_used;
+        if (chunk.tokens_per_sec != null) tokensPerSec = chunk.tokens_per_sec;
       },
       () => {
         resolve({
           answer: fullText,
           citations: finalCitations,
-          total_time_ms: null,
-          tokens_used: null,
+          total_time_ms: totalTimeMs,
+          tokens_used: tokensUsed,
+          tokens_per_second: tokensPerSec,
         });
       },
       (err) => reject(err),
@@ -535,8 +544,11 @@ export async function streamChat(query, onChunk, onComplete, onError, options = 
         if (line.startsWith('data: ')) {
           const data = line.slice(6).trim();
           if (data === '[DONE]') {
-            if (onComplete) onComplete();
-            return;
+            // Don't stop on the first [DONE]. The backend appends a custom
+            // sources/citations event right before its own final [DONE], and an
+            // upstream llama.cpp [DONE] may arrive first. Keep reading until the
+            // HTTP stream itself ends so trailing citations are still parsed.
+            continue;
           }
           
           try {

@@ -57,6 +57,17 @@ const normalizeCitations = (raw = []) =>
 
 const fileGlyph = (type = '') => type.replace('.', '').toUpperCase().slice(0, 4) || 'DOC'
 
+// Map the backend job status (UPPERCASE enum on FileInfoResponse.job_status,
+// e.g. PENDING | PROCESSING | READY | FAILED) to the UI status the Sources
+// checkbox gates on ('indexed' enables selection).
+const normalizeDocStatus = (raw = '') => {
+  const s = String(raw).toLowerCase()
+  if (s === 'ready' || s === 'indexed') return 'indexed'
+  if (s === 'failed' || s === 'error') return 'error'
+  if (s === 'pending' || s === 'processing') return 'processing'
+  return s || 'processing'
+}
+
 // Minimum and maximum widths (px) for the Studio panel
 const STUDIO_MIN_W = 260
 const STUDIO_MAX_W = 560
@@ -110,7 +121,18 @@ function KnowledgeScreenInner() {
   const [activeCitation, setActiveCitation] = useState(null)
 
   // ---- Studio ----
-  const { notes, addNote, deleteNote, updateNote, pinMessage, clearAll } = useStudio()
+  const {
+    artifacts,
+    activeArtifact,
+    appendToActive,
+    createArtifact,
+    setActive,
+    renameArtifact,
+    updateArtifact,
+    deleteArtifact,
+    pinMessage,
+    clearAll,
+  } = useStudio()
   const [studioBusy, setStudioBusy] = useState(null)
   const [pickerOpen, setPickerOpen] = useState(false)
 
@@ -145,12 +167,15 @@ function KnowledgeScreenInner() {
       const mapped = (docs || []).map((d) => ({
         id: d.document_id,
         name: d.filename || d.document_id,
-        type: (d.file_extension || 'doc').replace('.', ''),
+        type: (d.file_type || d.file_extension || 'doc').replace('.', ''),
         chunks: d.chunk_count ?? 0,
-        status: (d.status || d.ingestion_status || 'indexed').toLowerCase(),
+        status: normalizeDocStatus(d.job_status || d.status || d.ingestion_status || 'ready'),
       }))
       setSources(mapped)
-      setSelectedIds(new Set(mapped.map((m) => m.id)))
+      // Only auto-select sources that are actually selectable (indexed).
+      setSelectedIds(new Set(mapped.filter((m) => m.status === 'indexed').map((m) => m.id)))
+    } catch (err) {
+      console.warn('[Knowledge] loadSources failed', err)
     } finally {
       setLoadingSources(false)
     }
@@ -236,14 +261,17 @@ function KnowledgeScreenInner() {
         const pollInterval = setInterval(async () => {
           try {
             const statusRes = await pollDocumentStatus(realId)
-            const lowerStatus = (statusRes.status || '').toLowerCase()
+            // GET /files/{id} carries the ingestion state under `job_status`
+            // (UPPERCASE enum, e.g. READY), not `status`.
+            const raw = (statusRes.job_status || statusRes.status || '').toLowerCase()
+            const uiStatus = normalizeDocStatus(raw)
             setSources((prev) => prev.map((s) => (s.id === realId
-              ? { ...s, status: lowerStatus === 'ready' ? 'indexed' : lowerStatus }
+              ? { ...s, status: uiStatus, chunks: statusRes.chunk_count ?? s.chunks }
               : s)))
-            if (lowerStatus === 'ready') {
+            if (raw === 'ready') {
               clearInterval(pollInterval)
               setSelectedIds((prev) => new Set(prev).add(realId))
-            } else if (lowerStatus === 'failed') {
+            } else if (raw === 'failed') {
               clearInterval(pollInterval)
               setSources((prev) => prev.map((s) => (s.id === realId ? { ...s, status: 'error' } : s)))
             }
@@ -308,7 +336,7 @@ function KnowledgeScreenInner() {
     setStudioBusy(action.key)
     try {
       const res = await queryKnowledge(action.prompt, 8, groundDocId)
-      addNote(action.label, res.answer || 'No output generated.', normalizeCitations(res.citations), 'action')
+      appendToActive(action.label, res.answer || 'No output generated.', normalizeCitations(res.citations), 'action')
     } finally {
       setStudioBusy(null)
     }
@@ -596,13 +624,17 @@ function KnowledgeScreenInner() {
 
         {/* ---- STUDIO PANEL ---- */}
         <StudioPanel
-          notes={notes}
+          artifacts={artifacts}
+          activeArtifact={activeArtifact}
           hasSources={hasSources}
           studioBusy={studioBusy}
           studioActions={STUDIO_ACTIONS}
           onAction={handleStudio}
-          onDeleteNote={deleteNote}
-          onUpdateNote={updateNote}
+          onCreate={() => createArtifact()}
+          onSelectArtifact={setActive}
+          onRenameArtifact={renameArtifact}
+          onUpdateArtifact={updateArtifact}
+          onDeleteArtifact={deleteArtifact}
           onCitationClick={(c, i) => setActiveCitation({ citation: c, index: i })}
           onClearAll={clearAll}
           style={{ width: studioPanelWidth }}
