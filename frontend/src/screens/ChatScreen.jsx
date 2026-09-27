@@ -10,6 +10,8 @@ import {
   listModelCatalog,
   streamChat,
   uploadToLibrary,
+  runAgentChat,
+  downloadApprovalNote,
 } from '../services/api.js'
 import MarkdownMessage from '../components/MarkdownMessage.jsx'
 import LlamaMessageFooter from '../components/LlamaMessageFooter.jsx'
@@ -240,6 +242,23 @@ export default function ChatScreen({ onNavigate }) {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  // Download a generated approval-note DOCX for a chat message
+  const handleDownloadNote = async (documentId) => {
+    try {
+      const blob = await downloadApprovalNote(documentId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'approval_note.docx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('[Chat] Approval-note download failed:', err);
+    }
+  };
+
   // Handle attachment file selection (Images and Documents)
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
@@ -445,6 +464,61 @@ export default function ChatScreen({ onNavigate }) {
     }
 
     try {
+      // ---- Agent intent routing --------------------------------------
+      // With a document attached, first ask the backend agent layer whether
+      // this is an approval-note request. If so, run the full workflow and
+      // render the note + Download DOCX inline. Otherwise fall through to
+      // normal streaming RAG chat.
+      if (attachmentToUse?.type === 'document' && attachmentToUse.documentId) {
+        setStatusText('Routing through sovereign agent (intent detection)...');
+        try {
+          const agentRes = await runAgentChat(finalQuery, attachmentToUse.documentId);
+          if (agentRes.intent === 'approval_note') {
+            if (agentRes.result) {
+              const r = agentRes.result;
+              const noteMsg = {
+                id: `vault-${Date.now()}`,
+                role: 'vault',
+                time: getTimestamp(),
+                text: r.note_markdown || '',
+                model: r.model || 'gemma-3-4b-it',
+                mode: 'approval note',
+                citations: r.citations || [],
+                findings: r.findings,
+                downloadUrl: r.download_url,
+                documentId: r.document_id,
+                steps: r.steps,
+                runId: r.run_id,
+              };
+              setMessages((prev) => [...prev, noteMsg]);
+            } else {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: `vault-err-${Date.now()}`,
+                  role: 'vault',
+                  time: getTimestamp(),
+                  text: `⚠️ ${agentRes.error || 'Could not generate the approval note.'}`,
+                  isError: true,
+                },
+              ]);
+            }
+            setIsSending(false);
+            setStatusText('');
+            if (attachmentToUse?.file) {
+              uploadToLibrary(attachmentToUse.file, 'chat').catch((e) =>
+                console.warn('[Library] Background upload failed:', e)
+              );
+            }
+            return;
+          }
+          // intent === 'qa' → fall through to streaming RAG below
+        } catch (routeErr) {
+          // Routing itself failed (network/infra) — degrade gracefully to RAG.
+          console.warn('[Chat] Agent-chat routing failed, falling back to RAG:', routeErr);
+        }
+      }
+
       let options = { model: selectedModel };
       let finalPrompt = finalQuery;
       
@@ -719,6 +793,38 @@ export default function ChatScreen({ onNavigate }) {
                       <MarkdownMessage content={m.text} />
                     )}
 
+                    {/* Approval-note deliverable: Download DOCX affordance */}
+                    {m.mode === 'approval note' && m.documentId && (
+                      <div className="mt-2 flex items-center gap-3 p-3 rounded-lg bg-[#F1F7F5] dark:bg-[#12211C] border border-[#D5EAE2] dark:border-[#284F44]">
+                        <div className="w-8 h-8 rounded-md bg-[#176B5B]/15 text-[#176B5B] dark:text-[#4AF626] flex items-center justify-center shrink-0">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 16 16">
+                            <path d="M3 2h8l3 3v9H3z"></path>
+                            <path d="M11 2v3h3"></path>
+                          </svg>
+                        </div>
+                        <div className="flex flex-col min-w-0 mr-auto">
+                          <span className="text-[12.5px] font-semibold text-[#20211F] dark:text-[#E0E0E0]">
+                            Approval Note (Word document)
+                          </span>
+                          <span className="text-[10.5px] font-mono text-[#77766F] dark:text-[#888888]">
+                            Generated on-premise · grounded in {(m.citations || []).length} source{(m.citations || []).length === 1 ? '' : 's'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadNote(m.documentId)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] bg-[#176B5B] text-white text-[12px] font-medium hover:bg-[#13584B] active:scale-95 transition-all shadow-sm shrink-0"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 16 16">
+                            <line x1="8" y1="2.5" x2="8" y2="11"></line>
+                            <polyline points="4.5 7.5 8 11 11.5 7.5"></polyline>
+                            <line x1="3" y1="13.5" x2="13" y2="13.5"></line>
+                          </svg>
+                          Download DOCX
+                        </button>
+                      </div>
+                    )}
+
                     {/* Tool executions & verification trace */}
                     {m.toolCalls && m.toolCalls.length > 0 && (
                       <div className="mt-3 p-2.5 rounded bg-[#F0EEE8] dark:bg-[#1E201C] border border-[#E2DED5] dark:border-[#333333] space-y-1.5 text-[12px] font-mono select-text">
@@ -907,7 +1013,7 @@ export default function ChatScreen({ onNavigate }) {
                   type="file"
                   ref={fileInputRef}
                   onChange={handleFileSelect}
-                  accept="image/*,.pdf,.docx,.txt"
+                  accept="image/*,.pdf,.docx,.txt,.csv,.xlsx"
                   className="hidden"
                   id="chat-file-input"
                 />

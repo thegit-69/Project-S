@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     max_upload_size: int = 50 * 1024 * 1024       # 50 MB
     max_pdf_pages: int = 200
     max_extracted_characters: int = 500_000        # 500 K chars
-    allowed_extensions: list[str] = ["txt", "pdf", "docx", "csv"]
+    allowed_extensions: list[str] = ["txt", "pdf", "docx", "csv", "xlsx"]
 
     # --- Local LLM provider ---
     llm_provider: str = "llama_cpp"

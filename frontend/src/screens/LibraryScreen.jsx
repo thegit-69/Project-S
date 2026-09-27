@@ -400,7 +400,7 @@ export default function LibraryScreen({ onNavigate }) {
         ref={fileInputRef}
         type="file"
         multiple
-        accept=".pdf,.docx,.txt,.csv"
+        accept=".pdf,.docx,.txt,.csv,.xlsx"
         className="hidden"
         onChange={(e) => { handleUpload(e.target.files); e.target.value = '' }}
       />

@@ -1,16 +1,17 @@
 import { useState, useEffect, useRef, useCallback, Component } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import {
-  FileText, Plus, Trash2, Check, Loader2, Sparkles, ArrowUp,
-  ScrollText, ListChecks, GraduationCap, Network, Clock, Table2,
-  HelpCircle, ShieldCheck, Database, BookOpen, UploadCloud, Pin,
+  FileText, Plus, X, Check, Loader2, Sparkles, ArrowUp, Download,
+  ScrollText, ListChecks, Table2,
+  ShieldCheck, Database, BookOpen, UploadCloud, Pin,
 } from 'lucide-react'
 import {
   listKnowledgeDocuments,
-  deleteKnowledgeDocument,
   uploadDocumentFile,
   pollDocumentStatus,
   queryKnowledge,
+  generateApprovalNote,
+  downloadApprovalNote,
 } from '../services/api.js'
 import MarkdownMessage from '../components/MarkdownMessage.jsx'
 import NotebookLMCitations from '../components/NotebookLMCitations.jsx'
@@ -24,14 +25,10 @@ import LibraryFilePicker from '../components/LibraryFilePicker.jsx'
 // ---------------------------------------------------------------------------
 
 const STUDIO_ACTIONS = [
-  { key: 'summary',  label: 'Summary',      icon: ScrollText,   prompt: 'Write a concise executive summary of the selected sources. Ground every statement in the documents.' },
-  { key: 'findings', label: 'Key Findings', icon: ListChecks,   prompt: 'List the key findings, anomalies and important data points from the selected sources as bullet points with citations.' },
-  { key: 'briefing', label: 'Approval Note', icon: FileText,     prompt: 'Draft a formal approval / briefing note based strictly on the selected sources, including background, findings and a recommendation.' },
-  { key: 'faq',      label: 'Study Guide',  icon: GraduationCap, prompt: 'Create a study guide with the most important questions and answers derived from the selected sources.' },
-  { key: 'mindmap',  label: 'Mind Map',     icon: Network,       prompt: 'Produce a hierarchical outline / mind map of the main topics and sub-topics covered by the selected sources.' },
-  { key: 'timeline', label: 'Timeline',     icon: Clock,         prompt: 'Extract a chronological timeline of events, dates and milestones mentioned in the selected sources.' },
-  { key: 'table',    label: 'Data Table',   icon: Table2,        prompt: 'Extract the key structured data from the selected sources and present it as a markdown table.' },
-  { key: 'quiz',     label: 'Quiz',         icon: HelpCircle,    prompt: 'Generate a short quiz (5 questions with answers) that tests understanding of the selected sources.' },
+  { key: 'summary',  label: 'Summary',      icon: ScrollText, prompt: 'Write a concise executive summary of the selected sources. Ground every statement in the documents.' },
+  { key: 'findings', label: 'Key Findings', icon: ListChecks, prompt: 'List the key findings, anomalies and important data points from the selected sources as bullet points with citations.' },
+  { key: 'briefing', label: 'Approval Note', icon: FileText,  prompt: 'Draft a formal approval / briefing note based strictly on the selected sources, including background, findings and a recommendation.' },
+  { key: 'table',    label: 'Data Table',   icon: Table2,     prompt: 'Extract the key structured data from the selected sources and present it as a markdown table.' },
 ]
 
 const SUGGESTED = [
@@ -40,20 +37,29 @@ const SUGGESTED = [
   'List any safety risks mentioned.',
 ]
 
+// Mirror of the backend intent_router: does this prompt ask for an
+// approval-note deliverable? A match routes the chat prompt through the real
+// grounded workflow (with the agentic trace + DOCX) instead of plain RAG.
+const APPROVAL_NOTE_RE =
+  /\b(approval[\s-]+notes?|approval[\s-]+memos?|approval[\s-]+letters?|note[\s-]+for[\s-]+approval|sign[\s-]?off[\s-]+notes?|approval[\s-]+documents?)\b/i
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 const normalizeCitations = (raw = []) =>
-  raw.map((c) => ({
-    document: c.document || c.filename || c.source || 'Source Document',
-    document_id: c.document_id,
-    page: c.page ?? c.page_number ?? null,
-    section: c.section || null,
-    chunk_id: c.chunk_id,
-    relevance_score: c.relevance_score ?? c.score ?? null,
-    snippet: c.snippet || c.content || c.text || '',
-  }))
+  raw.map((c) => {
+    const name = c.document || c.filename || c.source
+    return {
+      document: name && String(name).toLowerCase() !== 'unknown' ? name : 'Source Document',
+      document_id: c.document_id,
+      page: c.page ?? c.page_number ?? null,
+      section: c.section || null,
+      chunk_id: c.chunk_id,
+      relevance_score: c.relevance_score ?? c.score ?? null,
+      snippet: c.snippet || c.content || c.text || '',
+    }
+  })
 
 const fileGlyph = (type = '') => type.replace('.', '').toUpperCase().slice(0, 4) || 'DOC'
 
@@ -135,6 +141,10 @@ function KnowledgeScreenInner() {
   } = useStudio()
   const [studioBusy, setStudioBusy] = useState(null)
   const [pickerOpen, setPickerOpen] = useState(false)
+  // Live "agent working" trace shown in the chat stream while a Studio action
+  // runs, so the user sees the agent step through the document (retrieve ->
+  // read -> extract -> draft) like a hosted assistant would.
+  const [agentActivity, setAgentActivity] = useState(null)
 
   // ---- Resizable pane ----
   const [studioPanelWidth, setStudioPanelWidth] = useState(() => {
@@ -185,7 +195,7 @@ function KnowledgeScreenInner() {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages, isQuerying])
+  }, [messages, isQuerying, agentActivity])
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') setActiveCitation(null) }
@@ -287,10 +297,11 @@ function KnowledgeScreenInner() {
 
   const onDrop = (e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files) }
 
-  const handleDelete = async (id) => {
+  // Remove a source from THIS session's working set only. The file stays in the
+  // library (no deleteKnowledgeDocument call) so it can be re-added later.
+  const handleRemoveSource = (id) => {
     setSources((prev) => prev.filter((s) => s.id !== id))
     setSelectedIds((prev) => { const n = new Set(prev); n.delete(id); return n })
-    await deleteKnowledgeDocument(id)
   }
 
   // ---------------------------------------------------------------------------
@@ -299,13 +310,66 @@ function KnowledgeScreenInner() {
 
   const runQuery = async (text) => {
     const q = (text ?? input).trim()
-    if (!q || isQuerying) return
+    if (!q || isQuerying || agentActivity) return
     setInput('')
     setMessages((prev) => [...prev, { id: `u-${Date.now()}`, role: 'user', text: q }])
+
+    // Approval-note request typed in chat -> run the real grounded workflow
+    // (same agentic trace + DOCX as the Studio "Approval Note" button).
+    if (APPROVAL_NOTE_RE.test(q)) {
+      if (!groundDocId) {
+        setMessages((prev) => [...prev, {
+          id: `a-${Date.now()}`, role: 'assistant', isError: true,
+          text: 'Select exactly one source to draft its approval note (the note is grounded in a single document).',
+        }])
+        return
+      }
+      setIsQuerying(true)
+      try {
+        const result = await runWithAgentSteps(
+          'Drafting approval note',
+          [
+            'Reading the selected document',
+            'Retrieving the most relevant sections',
+            'Extracting key findings',
+            'Drafting the approval note',
+            'Exporting a Word (.docx) deliverable',
+          ],
+          () => generateApprovalNote(groundDocId, { instructions: q }),
+        )
+        const cites = normalizeCitations(result.citations)
+        appendToActive('Approval Note', result.note_markdown || 'No note was generated.', cites, 'action')
+        setMessages((prev) => [...prev, {
+          id: `a-${Date.now()}`,
+          role: 'assistant',
+          mode: 'approval note',
+          text: 'Approval note drafted from the selected source and added to Studio.',
+          citations: cites,
+          documentId: result.document_id,
+        }])
+      } catch (err) {
+        setMessages((prev) => [...prev, {
+          id: `a-${Date.now()}`, role: 'assistant', isError: true,
+          text: `The agent could not draft the approval note. (${err.message || 'unavailable'})`,
+        }])
+      } finally {
+        setIsQuerying(false)
+      }
+      return
+    }
+
+    // Normal grounded RAG — shown with the same agentic trace.
     setIsQuerying(true)
-    setStatusText('Searching local vectors...')
     try {
-      const res = await queryKnowledge(q, 6, groundDocId)
+      const res = await runWithAgentSteps(
+        'Answering from sources',
+        [
+          'Searching the local vector store',
+          'Reading the grounded passages',
+          'Synthesizing a grounded answer',
+        ],
+        () => queryKnowledge(q, 6, groundDocId),
+      )
       setMessages((prev) => [...prev, {
         id: `a-${Date.now()}`,
         role: 'assistant',
@@ -328,15 +392,104 @@ function KnowledgeScreenInner() {
   }
 
   // ---------------------------------------------------------------------------
-  // Studio actions
+  // Studio actions (agentic)
   // ---------------------------------------------------------------------------
 
+  // Drive a visible step trace while `work` (a real backend call) runs. Steps
+  // advance on a timer up to the last one, which stays "active" until the work
+  // resolves — mirroring how the pipeline actually progresses without faking a
+  // result. The trace is torn down shortly after completion.
+  const runWithAgentSteps = useCallback(async (title, stepLabels, work) => {
+    let steps = stepLabels.map((label, i) => ({ label, status: i === 0 ? 'active' : 'pending' }))
+    setAgentActivity({ title, steps })
+    let idx = 0
+    const timer = setInterval(() => {
+      if (idx >= steps.length - 1) return
+      idx += 1
+      steps = steps.map((s, i) => (
+        i < idx ? { ...s, status: 'done' } : i === idx ? { ...s, status: 'active' } : s
+      ))
+      setAgentActivity({ title, steps: [...steps] })
+    }, 1100)
+    try {
+      return await work()
+    } finally {
+      clearInterval(timer)
+      setAgentActivity({ title, steps: steps.map((s) => ({ ...s, status: 'done' })) })
+      setTimeout(() => setAgentActivity(null), 700)
+    }
+  }, [])
+
+  const handleDownloadNote = useCallback(async (documentId) => {
+    try {
+      const blob = await downloadApprovalNote(documentId)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'approval_note.docx'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setMessages((prev) => [...prev, {
+        id: `a-${Date.now()}`, role: 'assistant', isError: true,
+        text: `Could not download the approval note. (${err.message || 'unavailable'})`,
+      }])
+    }
+  }, [])
+
   const handleStudio = async (action) => {
-    if (studioBusy || !hasSources) return
+    if (studioBusy || !hasSources || agentActivity) return
     setStudioBusy(action.key)
     try {
-      const res = await queryKnowledge(action.prompt, 8, groundDocId)
-      appendToActive(action.label, res.answer || 'No output generated.', normalizeCitations(res.citations), 'action')
+      if (action.key === 'briefing') {
+        // Real approval-note workflow: grounded, cited, and exports a DOCX.
+        if (!groundDocId) {
+          setMessages((prev) => [...prev, {
+            id: `a-${Date.now()}`, role: 'assistant', isError: true,
+            text: 'Select exactly one source to draft its approval note (the note is grounded in a single document).',
+          }])
+          return
+        }
+        const result = await runWithAgentSteps(
+          'Drafting approval note',
+          [
+            'Reading the selected document',
+            'Retrieving the most relevant sections',
+            'Extracting key findings',
+            'Drafting the approval note',
+            'Exporting a Word (.docx) deliverable',
+          ],
+          () => generateApprovalNote(groundDocId, { instructions: action.prompt }),
+        )
+        const cites = normalizeCitations(result.citations)
+        appendToActive(action.label, result.note_markdown || 'No note was generated.', cites, 'action')
+        setMessages((prev) => [...prev, {
+          id: `a-${Date.now()}`,
+          role: 'assistant',
+          mode: 'approval note',
+          text: 'Approval note drafted from the selected source and added to Studio.',
+          citations: cites,
+          documentId: result.document_id,
+        }])
+      } else {
+        const res = await runWithAgentSteps(
+          action.label,
+          [
+            'Searching the local vector store',
+            'Reading the grounded passages',
+            `Composing the ${action.label.toLowerCase()}`,
+          ],
+          () => queryKnowledge(action.prompt, 8, groundDocId),
+        )
+        appendToActive(action.label, res.answer || 'No output generated.', normalizeCitations(res.citations), 'action')
+      }
+    } catch (err) {
+      setMessages((prev) => [...prev, {
+        id: `a-${Date.now()}`, role: 'assistant', isError: true,
+        text: `The agent could not complete "${action.label}". (${err.message || 'unavailable'})`,
+      }])
     } finally {
       setStudioBusy(null)
     }
@@ -352,7 +505,7 @@ function KnowledgeScreenInner() {
         ref={fileInputRef}
         type="file"
         multiple
-        accept=".pdf,.docx,.txt,.md,.csv"
+        accept=".pdf,.docx,.txt,.md,.csv,.xlsx"
         className="hidden"
         onChange={(e) => { handleFiles(e.target.files); e.target.value = '' }}
       />
@@ -437,10 +590,11 @@ function KnowledgeScreenInner() {
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin text-[#176B5B] shrink-0" />
                   : (
                     <button
-                      onClick={() => handleDelete(s.id)}
-                      className="opacity-0 group-hover:opacity-100 text-[#A09E96] hover:text-red-500 transition-all shrink-0"
+                      onClick={() => handleRemoveSource(s.id)}
+                      className="opacity-0 group-hover:opacity-100 text-[#A09E96] hover:text-[#176B5B] dark:hover:text-[#4AF626] transition-all shrink-0"
+                      title="Remove from this session (keeps it in the library)"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   )}
               </div>
@@ -529,6 +683,16 @@ function KnowledgeScreenInner() {
                       />
                     )}
 
+                    {m.mode === 'approval note' && m.documentId && (
+                      <button
+                        onClick={() => handleDownloadNote(m.documentId)}
+                        className="mt-3 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#176B5B] hover:bg-[#13584B] text-white text-[12.5px] font-medium transition-colors shadow-sm"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Download approval note (.docx)
+                      </button>
+                    )}
+
                     {!m.isError && (m.model || m.durationMs != null) && (
                       <div className="mt-2.5 pt-2 border-t border-[#E2DED5] dark:border-[#30332B] flex items-center gap-3 text-[10px] font-mono text-[#A09E96] dark:text-[#888888]">
                         {m.model && <span>{m.model}</span>}
@@ -549,7 +713,42 @@ function KnowledgeScreenInner() {
                 )
               )}
 
-              {isQuerying && (
+              {agentActivity && (
+                <div className="rounded-2xl px-4 py-3.5 border bg-[#FAF9F5] dark:bg-[#20221E] border-[#E2DED5] dark:border-[#30332B]">
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <Sparkles className="w-3.5 h-3.5 text-[#176B5B] dark:text-[#4AF626]" />
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-[#176B5B] dark:text-[#4AF626] font-semibold">
+                      Agent - {agentActivity.title}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {agentActivity.steps.map((s, i) => (
+                      <div key={i} className="flex items-center gap-2.5 text-[12.5px]">
+                        {s.status === 'done' ? (
+                          <Check className="w-3.5 h-3.5 text-[#176B5B] dark:text-[#4AF626] shrink-0" strokeWidth={3} />
+                        ) : s.status === 'active' ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-[#176B5B] dark:text-[#4AF626] shrink-0" />
+                        ) : (
+                          <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#C7C3B9] dark:bg-[#4a4d43]" />
+                          </span>
+                        )}
+                        <span className={
+                          s.status === 'pending'
+                            ? 'text-[#A09E96] dark:text-[#777970]'
+                            : s.status === 'active'
+                            ? 'text-[#20211F] dark:text-[#E0E0E0] font-medium'
+                            : 'text-[#77766F] dark:text-[#888888]'
+                        }>
+                          {s.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {isQuerying && !agentActivity && (
                 <div className="rounded-2xl px-4 py-3.5 border bg-[#FAF9F5] dark:bg-[#20221E] border-[#E2DED5] dark:border-[#30332B]">
                   <div className="flex items-center gap-2 text-[13px] text-[#77766F] dark:text-[#888888]">
                     <Loader2 className="w-4 h-4 animate-spin text-[#176B5B] dark:text-[#4AF626]" />

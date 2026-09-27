@@ -2,6 +2,7 @@ import abc
 import uuid
 import pypdf
 import docx
+import openpyxl
 from typing import Dict, Type
 from pathlib import Path
 
@@ -121,13 +122,77 @@ class DocxParser(BaseParser):
         doc.pages.append(NormalizedPage(page_number=1, blocks=blocks))
         return doc
 
+
+class XlsxParser(BaseParser):
+    """Parse an .xlsx workbook into a retrievable document.
+
+    Each worksheet becomes a page. Rows are emitted as individual
+    ``header: value`` records (good for fine-grained vector recall), while the
+    page's parent context reconstructs the full sheet so the LLM always sees the
+    whole table when any row is retrieved.
+    """
+
+    _MAX_ROWS_PER_SHEET = 2000  # guard against pathological workbooks
+
+    def parse(self, file_path: str, document_id: str) -> NormalizedDocument:
+        doc = NormalizedDocument(document_id=document_id, metadata={"source_type": "xlsx"})
+        wb = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
+        try:
+            for sheet_idx, ws in enumerate(wb.worksheets, start=1):
+                blocks = [Block(
+                    block_id=str(uuid.uuid4()),
+                    block_type="heading",
+                    content=f"Sheet: {ws.title}",
+                    page=sheet_idx,
+                    section=ws.title,
+                    metadata={"sheet": ws.title},
+                )]
+
+                header = None
+                row_count = 0
+                for raw in ws.iter_rows(values_only=True):
+                    if row_count >= self._MAX_ROWS_PER_SHEET:
+                        break
+                    cells = ["" if v is None else str(v).strip() for v in raw]
+                    if not any(cells):
+                        continue
+                    if header is None:
+                        header = cells
+                        continue
+                    row_count += 1
+                    pairs = []
+                    for ci, value in enumerate(cells):
+                        col = header[ci] if ci < len(header) else f"Column {ci + 1}"
+                        if col or value:
+                            pairs.append(f"{col}: {value}")
+                    record = "; ".join(pairs).strip()
+                    if record:
+                        blocks.append(Block(
+                            block_id=str(uuid.uuid4()),
+                            block_type="row",
+                            content=record,
+                            page=sheet_idx,
+                            section=ws.title,
+                            metadata={"sheet": ws.title, "row": row_count},
+                        ))
+
+                doc.pages.append(NormalizedPage(page_number=sheet_idx, blocks=blocks))
+        finally:
+            wb.close()
+
+        if not doc.pages:
+            doc.pages.append(NormalizedPage(page_number=1, blocks=[]))
+        doc.metadata["sheet_count"] = len(doc.pages)
+        return doc
+
 class ParserRegistry:
     def __init__(self):
         self._parsers: Dict[str, BaseParser] = {
             "txt": TxtParser(),
             "csv": TxtParser(),
             "pdf": PdfParser(),
-            "docx": DocxParser()
+            "docx": DocxParser(),
+            "xlsx": XlsxParser(),
         }
         
     def get_parser(self, extension: str) -> BaseParser:

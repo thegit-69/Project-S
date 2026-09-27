@@ -198,7 +198,7 @@ export default function LibraryFilePicker({ open, onClose, onSelect, source = 'k
                   ref={fileInputRef}
                   type="file"
                   multiple
-                  accept=".pdf,.docx,.txt,.csv"
+                  accept=".pdf,.docx,.txt,.csv,.xlsx"
                   className="hidden"
                   onChange={(e) => { addToQueue(e.target.files); e.target.value = '' }}
                 />

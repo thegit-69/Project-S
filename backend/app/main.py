@@ -202,8 +202,22 @@ def create_app() -> FastAPI:
         )
 
 
+        # Flagship approval-note workflow (ingest -> retrieve -> findings ->
+        # note -> DOCX), composing the active RAG pipeline into one call.
+        from app.services.approval_workflow import ApprovalNoteWorkflow
+        from app.services.export_service import ExportService
+
+        approval_workflow = ApprovalNoteWorkflow(
+            registry=model_registry,
+            retrieval_service=new_retrieval_service,
+            export_service=ExportService(),
+            audit_service=audit_service,
+            settings=settings,
+        )
+
         # Store on app.state for dependency injection in routes
         app.state.registry = model_registry
+        app.state.approval_workflow = approval_workflow
         app.state.catalog = model_catalog
         app.state.selector = model_selector
         app.state.tool_registry = tool_registry
@@ -308,6 +322,7 @@ def create_app() -> FastAPI:
                 "audit": audit_health,
                 "network": network_compliance,
                 "embeddings": embedding_health,
+                "approval_workflow": getattr(request.app.state, "approval_workflow", None) is not None,
             },
         }
 
@@ -318,10 +333,12 @@ def create_app() -> FastAPI:
     
     from app.api import retrieval, chat, files as new_files_api
     from app.api import studio as studio_api
+    from app.api import workflows as workflows_api
     app.include_router(new_files_api.router)
     app.include_router(retrieval.router)
     app.include_router(chat.router)
     app.include_router(studio_api.router)
+    app.include_router(workflows_api.router)
 
     # Initialize database tables if missing
     from app.db.init_db import init_db

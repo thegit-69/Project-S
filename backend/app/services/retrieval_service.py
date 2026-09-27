@@ -1,10 +1,17 @@
 from typing import List, Optional
 import hashlib
+import logging
 from qdrant_client.models import Filter, FieldCondition, MatchValue, Prefetch, FusionQuery, Fusion, SparseVector
 from app.services.embedding_service import BaseEmbeddingProvider
 from app.services.vector_store import VectorStoreService
 from app.models.schemas import QdrantPayload
 from app.services.sparse_embedding_service import get_sparse_embedding_provider
+
+logger = logging.getLogger(__name__)
+
+# Placeholder written into chunk payloads when the source filename was not
+# known at ingest time (see chunking_service). Treated as "no filename".
+_UNKNOWN_FILENAME = "unknown"
 
 class RetrievalService:
     def __init__(self, vector_store: VectorStoreService, embedding_provider: BaseEmbeddingProvider):
@@ -72,8 +79,47 @@ class RetrievalService:
                 p.content = p.parent_content
                 
             payloads.append(p)
-            
+
             if len(payloads) >= top_k:
                 break
-                
+
+        # Backfill any missing/"unknown" filenames from the documents table so
+        # citations always show the real document title, not a placeholder.
+        # (Older chunks were embedded before the filename was recorded.)
+        self._backfill_filenames(payloads)
+
         return payloads
+
+    @staticmethod
+    def _backfill_filenames(payloads: List[QdrantPayload]) -> None:
+        """Resolve real document filenames by document_id for any payload whose
+        stored filename is empty or the ``unknown`` placeholder. Best-effort:
+        a lookup failure leaves the existing value untouched."""
+        missing_ids = {
+            p.document_id for p in payloads
+            if p.document_id and (not p.filename or p.filename == _UNKNOWN_FILENAME)
+        }
+        if not missing_ids:
+            return
+
+        # Imported lazily to keep the vector layer free of a hard DB import.
+        from app.db.session import SessionLocal
+        from app.db.models import Document
+
+        names: dict = {}
+        db = SessionLocal()
+        try:
+            rows = (
+                db.query(Document.id, Document.original_filename)
+                .filter(Document.id.in_(missing_ids))
+                .all()
+            )
+            names = {doc_id: fname for doc_id, fname in rows if fname}
+        except Exception as exc:  # noqa: BLE001 - never break retrieval over a name lookup
+            logger.warning("Filename backfill lookup failed: %s", exc)
+        finally:
+            db.close()
+
+        for p in payloads:
+            if (not p.filename or p.filename == _UNKNOWN_FILENAME) and names.get(p.document_id):
+                p.filename = names[p.document_id]

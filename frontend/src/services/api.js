@@ -345,6 +345,72 @@ export async function queryKnowledge(query, topK = 5, documentId = null) {
 }
 
 /**
+ * Agent-routed chat: ask the backend whether a prompt (on a selected document)
+ * is an approval-note request. When it is, the backend runs the full
+ * ApprovalNoteWorkflow and returns the note inline; otherwise it replies
+ * { intent: 'qa' } and the caller should stream a normal RAG answer.
+ * Endpoint: POST /workflows/agent-chat
+ *
+ * @param {string} prompt
+ * @param {string|null} documentId
+ * @returns {Promise<{intent: string, result?: object, error?: string}>}
+ */
+export async function runAgentChat(prompt, documentId = null) {
+  const res = await fetch(`${API_BASE_URL}/workflows/agent-chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ prompt, document_id: documentId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Agent chat failed (${res.status})`);
+  }
+  return await res.json();
+}
+
+/**
+ * Download the generated approval-note DOCX for a document.
+ * Endpoint: GET /workflows/approval-note/{document_id}/download
+ *
+ * @param {string} documentId
+ * @returns {Promise<Blob>} Binary DOCX blob
+ */
+export async function downloadApprovalNote(documentId) {
+  const res = await fetch(
+    `${API_BASE_URL}/workflows/approval-note/${encodeURIComponent(documentId)}/download`
+  );
+  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+  return await res.blob();
+}
+
+/**
+ * Run the flagship approval-note workflow directly against an already-indexed
+ * library document (RAG -> findings -> note -> DOCX). Unlike runAgentChat this
+ * skips intent classification, so it is the right entrypoint for an explicit
+ * "Approval Note" Studio action.
+ * Endpoint: POST /workflows/approval-note  (multipart form, document_id path)
+ *
+ * @param {string} documentId
+ * @param {{ title?: string, instructions?: string }} [opts]
+ * @returns {Promise<object>} ApprovalNoteResult (findings, note_markdown, citations, download_url, steps, ...)
+ */
+export async function generateApprovalNote(documentId, opts = {}) {
+  const form = new FormData();
+  form.append('document_id', documentId);
+  if (opts.title) form.append('title', opts.title);
+  if (opts.instructions) form.append('instructions', opts.instructions);
+  const res = await fetch(`${API_BASE_URL}/workflows/approval-note`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Approval note failed (${res.status})`);
+  }
+  return await res.json();
+}
+
+/**
  * High-level chat sender that routes multimodal images to local vision,
  * attached documents to local RAG, or queries to the Agent Orchestrator.
  */
