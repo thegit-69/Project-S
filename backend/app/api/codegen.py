@@ -23,10 +23,16 @@ LLAMA_BASE = "http://localhost:9090"
 QWEN_MODEL = "Qwen/Qwen3-4B-GGUF:Q4_K_M"
 
 SYSTEM_PROMPT = """You are an expert Python programmer embedded in a secure, air-gapped AI workbench for industrial use.
-When asked to write code:
+When asked to write code, follow these rules STRICTLY:
+0. Don't start with ```python```, just give valid code it will be directly run on a docker sandbox
 1. Reply with ONLY valid Python code — no markdown fences, no explanations outside the code.
 2. Include concise docstrings and inline comments where helpful.
 3. Before the code, output exactly ONE line starting with "# SUMMARY: " describing what the code does.
+4. NEVER use input() or any other interactive function. The code runs non-interactively in a sandbox.
+5. Always initialize ALL variables with concrete hard-coded values or sensible defaults directly in the code.
+   - If the user asks for a script that processes data, include realistic sample data inline.
+   - If a parameter is needed, define it as a variable at the top of the script with a clear value.
+6. The code must be fully self-contained and runnable without any user interaction or external files.
 Keep code clean, readable, and production-quality."""
 
 

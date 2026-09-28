@@ -14,53 +14,37 @@ import '@xterm/xterm/css/xterm.css'
 const API_BASE = 'http://127.0.0.1:8000'
 const WS_BASE  = 'ws://127.0.0.1:8000'
 
-// ─── Initial demo messages ─────────────────────────────────────────────────────
-const DEMO_CODE = `import statistics
-
-def analyse_sensor_readings(readings: list[float]) -> dict:
-    """Analyse sensor readings and flag outliers beyond 3σ threshold."""
-    mean  = statistics.mean(readings)
-    stdev = statistics.stdev(readings)
-    threshold = 3 * stdev
-    outliers = [
-        {"index": i, "value": v, "deviation": round(abs(v - mean) / stdev, 2)}
-        for i, v in enumerate(readings)
-        if abs(v - mean) > threshold
-    ]
-    return {
-        "mean": round(mean, 4), "stdev": round(stdev, 4),
-        "threshold_3sigma": round(threshold, 4), "outliers": outliers,
-        "total_readings": len(readings), "flagged_count": len(outliers),
-    }
-
-sensor_data = [
-    102.3, 101.8, 103.1, 102.7, 101.5, 102.9, 103.4, 101.2,
-    102.6, 145.8,  # ← spike anomaly
-    103.0, 102.4, 101.9, 102.8, 103.2, 102.1, 101.7, 102.5,
-    103.3, 55.1,   # ← drop anomaly
-    102.0, 101.6, 103.5, 102.2, 101.4, 102.3, 103.1, 101.8,
-]
-
-results = analyse_sensor_readings(sensor_data)
-print(f"=== Sensor Analysis Report ===")
-print(f"Total Readings : {results['total_readings']}")
-print(f"Mean           : {results['mean']} units")
-print(f"Std Deviation  : {results['stdev']} units")
-print(f"3\u03c3 Threshold   : \xb1{results['threshold_3sigma']} units")
-print(f"Flagged        : {results['flagged_count']} anomaly/anomalies")
-print()
-if results['outliers']:
-    print("\u26a0  ANOMALIES DETECTED:")
-    for item in results['outliers']:
-        print(f"   Index {item['index']:>3}: {item['value']} units  ({item['deviation']}\u03c3 from mean)")
-else:
-    print("\u2713 All readings within normal range.")
-`
-
-const INITIAL_MESSAGES = [
-  { role: 'user', content: 'Write a Python script that calculates the standard deviation of a list of sensor readings and flags any value that exceeds 3\u03c3.' },
-  { role: 'agent', summary: 'Computes mean and 3\u03c3 threshold, flags anomalies in industrial sensor dataset. 2 spike anomalies detected at indices 9 and 19.' },
-]
+// ─── Offline state banner shown in AI Coder panel when Qwen is unreachable ────
+function QwenOfflineBanner({ isDark }) {
+  const d = isDark
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`mx-3 mt-3 p-4 rounded-xl border flex flex-col gap-2 ${
+        d ? 'bg-red-950/30 border-red-900/40' : 'bg-red-50 border-red-200'
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <WifiOff className={`w-4 h-4 shrink-0 ${d ? 'text-red-400' : 'text-red-500'}`} />
+        <span className={`text-[12px] font-semibold ${d ? 'text-red-300' : 'text-red-700'}`}>
+          Qwen Model Offline
+        </span>
+      </div>
+      <p className={`text-[11px] leading-relaxed ${d ? 'text-red-400/80' : 'text-red-600'}`}>
+        The local AI coding model isn't reachable. Start it with:
+      </p>
+      <code className={`text-[10px] font-mono px-2 py-1.5 rounded-lg block ${
+        d ? 'bg-[#0d1117] text-emerald-400 border border-[#21262d]' : 'bg-white text-[#176B5B] border border-[#E2DED5]'
+      }`}>
+        llama-server --port 9090 -hf Qwen/Qwen3-4B-GGUF:Q4_K_M
+      </code>
+      <p className={`text-[10px] ${d ? 'text-[#6e7681]' : 'text-[#77766F]'}`}>
+        You can still write and run code in the editor manually.
+      </p>
+    </motion.div>
+  )
+}
 
 // ─── xterm themes ─────────────────────────────────────────────────────────────
 const XTERM_DARK = {
@@ -200,9 +184,9 @@ function SandboxTerminal({ isDark, termRef, fitRef }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function CodeScreen() {
   const [isDark, setIsDark]           = useState(true)
-  const [code, setCode]               = useState(DEMO_CODE)
+  const [code, setCode]               = useState('')
   const [pendingCode, setPendingCode] = useState(null)   // code waiting for accept/reject
-  const [messages, setMessages]       = useState(INITIAL_MESSAGES)
+  const [messages, setMessages]       = useState([])
   const [userInput, setUserInput]     = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [isRunning, setIsRunning]     = useState(false)
@@ -328,7 +312,7 @@ export default function CodeScreen() {
       if (err.name !== 'AbortError') {
         setMessages(prev => prev.map(m =>
           m.id === agentIdx
-            ? { ...m, summary: `⚠ Failed to reach Qwen. Is llama-server running on port 9090?`, streaming: false }
+            ? { ...m, summary: '⚠ Qwen model is offline. Start llama-server on port 9090 and retry.', streaming: false }
             : m
         ))
         setPendingCode(null)
@@ -569,21 +553,40 @@ export default function CodeScreen() {
           </div>
         </div>
 
-        {/* Qwen info pill */}
-        <div className={`mx-3 mt-2 mb-1 p-2 rounded-xl border ${d ? 'bg-[#0d1117] border-[#21262d]' : 'bg-[#F1F0EB] border-[#E2DED5]'}`}>
-          <div className="flex items-center gap-2 mb-0.5">
-            <Cpu className={`w-3 h-3 ${d ? 'text-emerald-400' : 'text-[#176B5B]'}`} />
-            <span className={`text-[10px] font-mono font-semibold ${d ? 'text-emerald-400' : 'text-[#176B5B]'}`}>
-              Qwen3-4B-GGUF Q4_K_M
-            </span>
+        {/* Qwen info pill — only shown when model is online */}
+        {qwenOk && (
+          <div className={`mx-3 mt-2 mb-1 p-2 rounded-xl border ${d ? 'bg-[#0d1117] border-[#21262d]' : 'bg-[#F1F0EB] border-[#E2DED5]'}`}>
+            <div className="flex items-center gap-2 mb-0.5">
+              <Cpu className={`w-3 h-3 ${d ? 'text-emerald-400' : 'text-[#176B5B]'}`} />
+              <span className={`text-[10px] font-mono font-semibold ${d ? 'text-emerald-400' : 'text-[#176B5B]'}`}>
+                Qwen3-4B-GGUF Q4_K_M
+              </span>
+            </div>
+            <p className={`text-[10px] ${sub} leading-snug`}>
+              Code appears directly in the editor. Accept or reject changes.
+            </p>
           </div>
-          <p className={`text-[10px] ${sub} leading-snug`}>
-            Code appears directly in the editor. Accept or reject changes.
-          </p>
-        </div>
+        )}
+        {/* Offline banner — shown when Qwen is unreachable */}
+        {qwenOk === false && <QwenOfflineBanner isDark={isDark} />}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-2.5 min-h-0">
+          {messages.length === 0 && qwenOk !== false && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className={`flex flex-col items-center justify-center h-full gap-2 text-center px-4 pb-8`}
+            >
+              <BotMessageSquare className={`w-8 h-8 ${d ? 'text-[#30363d]' : 'text-[#E2DED5]'}`} />
+              <p className={`text-[12px] font-medium ${d ? 'text-[#6e7681]' : 'text-[#77766F]'}`}>
+                Ask Qwen to write code
+              </p>
+              <p className={`text-[10px] ${d ? 'text-[#484f58]' : 'text-[#9c9b96]'}`}>
+                e.g. "Write a script to analyse pressure sensor readings"
+              </p>
+            </motion.div>
+          )}
           <AnimatePresence initial={false}>
             {messages.map((msg, i) => (
               <AgentMessage key={i} msg={msg} isDark={isDark} />
@@ -614,15 +617,15 @@ export default function CodeScreen() {
               className={`flex-1 bg-transparent text-[12px] resize-none outline-none leading-relaxed ${txt}`}
               style={{ color: d ? '#c9d1d9' : '#20211F' }}
             />
-            <button onClick={handleSend} disabled={!userInput.trim() || isGenerating} id="send-message-btn"
+            <button onClick={handleSend} disabled={!userInput.trim() || isGenerating || qwenOk === false} id="send-message-btn"
               className="w-7 h-7 rounded-lg bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center shrink-0 transition-colors shadow-md">
               <Send className="w-3 h-3 text-white" />
             </button>
           </div>
-          {!qwenOk && qwenOk !== null && (
+          {qwenOk === false && (
             <p className="flex items-center gap-1 text-[10px] text-red-400 mt-1.5 font-mono">
               <AlertCircle className="w-2.5 h-2.5" />
-              Qwen offline. Start: llama-server --port 9090
+              Model offline — see instructions above
             </p>
           )}
           {pendingCode && (
